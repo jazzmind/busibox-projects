@@ -88,3 +88,28 @@ model Item {
   @@index([createdById])
   @@index([status])
 }
+
+// =============================================================================
+// DEMO MODEL - DELETE WHEN BUILDING REAL APP
+// =============================================================================
+
+/// DEMO MODEL - DELETE WHEN BUILDING REAL APP
+/// Simple note-taking model to demonstrate CRUD operations
+/// This model is intentionally simple (no organization complexity) for clear demos
+/// 
+/// To remove:
+/// 1. Delete this model from schema.prisma
+/// 2. Delete app/api/demo/ directory
+/// 3. Delete app/demo/ directory
+/// 4. Run: npx prisma db push
+model DemoNote {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([createdAt])
+}

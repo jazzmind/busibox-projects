@@ -53,6 +53,48 @@ npm run dev
 
 Visit http://localhost:3002
 
+## Demo Features (Delete Before Production)
+
+**⚠️ This template includes working demo features for testing deployment.**
+
+### What's Included
+
+The demo features test three critical aspects of your Busibox deployment:
+
+1. **SSO Authentication** - Validates user sessions from AI Portal
+2. **Database CRUD** - Tests Prisma operations with PostgreSQL
+3. **Agent API Calls** - Verifies Zero Trust token exchange
+
+### Try the Demo
+
+Visit `/demo` after starting the development server to test:
+
+- View authenticated user information
+- Create, read, update, and delete notes
+- Make downstream calls to agent-api with proper authentication
+
+### Removing Demo Features
+
+**Before deploying to production, delete all demo features using the checklist in `DEMO.md`.**
+
+Quick deletion:
+
+```bash
+# Delete demo files
+rm -rf app/demo/ app/api/demo/ prisma/seed.ts DEMO.md
+
+# Update schema (remove DemoNote model)
+# Edit prisma/schema.prisma to remove DEMO MODEL section
+
+# Update navigation and home page
+# Remove sections marked with "DEMO" comments
+
+# Push schema changes
+npm run db:push
+```
+
+See [`DEMO.md`](DEMO.md) for the complete step-by-step deletion guide.
+
 ## Operational Modes
 
 ### Frontend-Only Mode (Default)

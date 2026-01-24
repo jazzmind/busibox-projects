@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "description": "Busibox Next.js App Template - supports both frontend-only and Prisma modes",
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "scripts": {
     "dev": "next dev -p 3002",
     "build": "next build",
@@ -13,6 +16,7 @@
     "lint": "next lint",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
+    "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "update:busibox-app": "./scripts/update-busibox-app.sh",
     "link:busibox": "./scripts/link-local-busibox.sh",
@@ -46,6 +50,7 @@
     "jsdom": "^25.0.1",
     "prisma": "^6.0.0",
     "tailwindcss": "^4",
+    "tsx": "^4.19.2",
     "typescript": "^5",
     "vitest": "^4.0.15"
   }

@@ -157,6 +157,13 @@ function AppShellContent({
           >
             Home
           </Link>
+          {/* DEMO LINK - DELETE WHEN BUILDING REAL APP */}
+          <Link
+            href="/demo"
+            className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400"
+          >
+            Demo Features
+          </Link>
           {/* Add more navigation links as needed */}
         </div>
       </nav>
