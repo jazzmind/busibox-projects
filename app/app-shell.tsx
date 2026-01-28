@@ -2,9 +2,8 @@
 
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
-import { FetchWrapper, Footer, VersionBar } from '@jazzmind/busibox-app';
+import { FetchWrapper, Footer, VersionBar, AuthProvider, useAuth } from '@jazzmind/busibox-app';
 import type { SessionData } from '@jazzmind/busibox-app';
-import { AuthProvider, useAuth } from '@/components/auth/AuthContext';
 import { CustomHeader } from '@/components/CustomHeader';
 
 function AppShellContent({ children, basePath }: { children: React.ReactNode; basePath: string }) {
@@ -113,8 +112,15 @@ function AppShellContent({ children, basePath }: { children: React.ReactNode; ba
 }
 
 export function AppShell({ children, basePath }: { children: React.ReactNode; basePath: string }) {
+  const portalUrl = process.env.NEXT_PUBLIC_AI_PORTAL_URL || '';
+  const appId = process.env.APP_NAME || 'app-template';
+  
   return (
-    <AuthProvider>
+    <AuthProvider
+      appId={appId}
+      portalUrl={portalUrl}
+      basePath={basePath}
+    >
       <AppShellContent basePath={basePath}>{children}</AppShellContent>
     </AuthProvider>
   );

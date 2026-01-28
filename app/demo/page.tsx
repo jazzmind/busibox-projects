@@ -12,7 +12,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useAuth } from "@/components/auth/AuthContext";
+import { useAuth } from "@jazzmind/busibox-app";
 import { Trash2, Edit2, Check, X, AlertCircle, CheckCircle } from "lucide-react";
 
 interface DemoNote {

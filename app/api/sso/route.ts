@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateSSOToken, createSessionFromSSO } from "@/lib/sso";
+import { validateSSOToken, createSessionFromSSO } from "@jazzmind/busibox-app/lib/auth";
 
 /**
  * SSO callback endpoint

@@ -260,8 +260,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Exchange token from URL - calls SSO endpoint to set cookies
+ * 
+ * IMPORTANT: Uses POST to /api/sso which returns JSON and sets cookies directly.
+ * Do NOT use GET with redirect: 'manual' as browsers don't process Set-Cookie
+ * headers from redirect responses when using manual redirect mode.
+ */
 async function exchangeToken(token: string): Promise<void> {
-  const response = await fetch('/api/auth/exchange', {
+  // Call the SSO POST endpoint to validate the token and set cookies
+  // Using POST because it returns JSON instead of redirecting
+  const response = await fetch('/api/sso', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -271,8 +280,12 @@ async function exchangeToken(token: string): Promise<void> {
   });
 
   if (!response.ok) {
-    throw new Error('Token exchange failed');
+    const error = await response.json().catch(() => ({}));
+    console.error('[AuthProvider] SSO token exchange failed:', error);
+    throw new Error(error.error || 'Token exchange failed');
   }
+
+  console.log('[AuthProvider] SSO cookie exchange successful');
 
   // Also store in localStorage as backup for client-side requests
   try {

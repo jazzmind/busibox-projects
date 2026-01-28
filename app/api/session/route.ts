@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTokenFromRequest, getSessionFromRequest, getUserIdFromToken, getUserRolesFromToken, parseJWTPayload, isTokenExpired } from "@/lib/auth-helper";
+import { 
+  getTokenFromRequest, 
+  getSessionFromRequest, 
+  getUserIdFromToken, 
+  getUserRolesFromToken, 
+  parseJWTPayload, 
+  isTokenExpired 
+} from "@jazzmind/busibox-app/lib/auth";
 
 /**
  * Check if a string looks like a UUID

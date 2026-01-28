@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getTokenFromRequest } from "./auth-helper";
+import { getTokenFromRequest } from "@jazzmind/busibox-app/lib/auth";
 import { getApiToken } from "./authz-client";
 
 // Default audience for API calls - override in your app

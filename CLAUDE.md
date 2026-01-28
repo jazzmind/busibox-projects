@@ -155,9 +155,26 @@ All apps use Busibox SSO with Zero Trust token exchange:
 // 3. authz verifies user has app access via RBAC
 // 4. authz issues RS256 token with app_id claim
 // 5. App validates token via authz JWKS endpoint
+// 6. AuthContext exchanges token via POST /api/sso to set cookies
 ```
 
-Use the auth middleware in API routes:
+**Client-side Token Exchange (AuthContext):**
+
+The `AuthContext` component handles token exchange from URL parameters:
+
+```typescript
+// IMPORTANT: Use POST to /api/sso for token exchange
+// Do NOT use GET with redirect: 'manual' - browsers don't process 
+// Set-Cookie headers from redirect responses in manual mode
+const response = await fetch('/api/sso', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ token }),
+  credentials: 'include',
+});
+```
+
+**Server-side Auth Middleware (API routes):**
 
 ```typescript
 import { requireAuthWithTokenExchange } from '@/lib/auth-middleware';
