@@ -20,6 +20,13 @@ function AppShellContent({ children, basePath }: { children: React.ReactNode; ba
 
   // URLs to skip auth handling for
   const skipAuthUrls = useMemo(() => [
+    // These should always include basePath (Next.js basePath affects API routes too).
+    // Keep the non-basePath variants as a safety net for local/dev setups.
+    `${basePath}/api/auth/refresh`,
+    `${basePath}/api/auth/exchange`,
+    `${basePath}/api/session`,
+    `${basePath}/api/logout`,
+    `${basePath}/api/health`,
     '/api/auth/refresh',
     '/api/auth/exchange',
     '/api/session',
@@ -54,7 +61,7 @@ function AppShellContent({ children, basePath }: { children: React.ReactNode; ba
     let cancelled = false;
     async function loadSession() {
       try {
-        const res = await fetch('/api/session', {
+        const res = await fetch(`${basePath}/api/session`, {
           credentials: 'include',
         });
         const data = await res.json();

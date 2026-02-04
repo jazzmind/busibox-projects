@@ -72,6 +72,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const portalUrl = process.env.NEXT_PUBLIC_AI_PORTAL_URL || '';
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
+  // Ensure internal fetches respect Next.js basePath.
+  // When basePath is set (e.g. "/myapp"), API routes are served at:
+  //   /myapp/api/...
+  // NOT at:
+  //   /api/...
+  const withBasePath = useCallback((path: string) => {
+    if (!path.startsWith('/')) path = `/${path}`;
+    if (!basePath) return path;
+    return `${basePath}${path}`;
+  }, [basePath]);
+
   // Handle token exchange from URL FIRST, before starting auth manager
   useEffect(() => {
     const token = searchParams.get('token');
@@ -132,8 +143,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // autoRedirect: true - redirect to portal when session is invalid
     // This is needed for apps that require authentication
     const manager = createAuthStateManager({
-      refreshEndpoint: '/api/auth/refresh',
-      sessionEndpoint: '/api/session',
+      refreshEndpoint: withBasePath('/api/auth/refresh'),
+      sessionEndpoint: withBasePath('/api/session'),
       portalUrl: portalUrl ? `${portalUrl}/home` : '', // Go to portal home page
       appId: process.env.APP_NAME || 'app-template',
       checkIntervalMs: 30_000, // Check every 30 seconds
@@ -194,7 +205,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       manager.stop();
       clearGlobalAuthManager();
     };
-  }, [portalUrl, basePath, tokenExchangeComplete]);
+  }, [portalUrl, basePath, tokenExchangeComplete, withBasePath]);
 
   const refreshToken = useCallback(async (): Promise<boolean> => {
     if (authManagerRef.current) {
@@ -268,9 +279,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  * headers from redirect responses when using manual redirect mode.
  */
 async function exchangeToken(token: string): Promise<void> {
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+  const ssoUrl = basePath ? `${basePath}/api/sso` : '/api/sso';
+
   // Call the SSO POST endpoint to validate the token and set cookies
   // Using POST because it returns JSON instead of redirecting
-  const response = await fetch('/api/sso', {
+  const response = await fetch(ssoUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
