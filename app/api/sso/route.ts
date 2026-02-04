@@ -52,9 +52,9 @@ export async function GET(request: NextRequest) {
       path: basePath || "/",
     });
 
-    // Set auth_token cookie (what getTokenFromRequest looks for)
-    // Scoped to this app's path to avoid conflicts with other apps
-    response.cookies.set("auth_token", token, {
+    // Set app-specific auth_token cookie to avoid conflicts with other apps
+    // Using app-prefixed name ensures each app has its own token cookie
+    response.cookies.set(`${appName}-auth-token`, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -127,8 +127,8 @@ export async function POST(request: NextRequest) {
       path: basePath,
     });
 
-    // Set auth_token cookie - scoped to this app's path
-    response.cookies.set("auth_token", token, {
+    // Set app-specific auth_token cookie to avoid conflicts with other apps
+    response.cookies.set(`${appName}-auth-token`, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
