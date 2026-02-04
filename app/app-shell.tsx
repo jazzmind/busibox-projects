@@ -127,7 +127,6 @@ export function AppShell({ children, basePath }: { children: React.ReactNode; ba
       appId={appId}
       portalUrl={portalUrl}
       basePath={basePath}
-      exchangeEndpoint="/api/sso"
     >
       <AppShellContent basePath={basePath}>{children}</AppShellContent>
     </AuthProvider>
