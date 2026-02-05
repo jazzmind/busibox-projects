@@ -15,10 +15,9 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Update these for your app
 export const metadata: Metadata = {
-  title: "My App",
-  description: "Built with Busibox App Template",
+  title: "AI Initiative Status",
+  description: "Track and visualize the status of AI initiatives with intelligent status updates",
 };
 
 export default function RootLayout({

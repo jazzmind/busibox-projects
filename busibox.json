@@ -1,26 +1,25 @@
 {
   "$schema": "https://busibox.io/schemas/app-manifest-v1.json",
-  "name": "Busibox App Template Demo",
-  "id": "app-template-demo",
+  "name": "AI Initiative Status",
+  "id": "status-report",
   "version": "1.0.0",
-  "description": "Demo application showcasing Busibox SSO authentication, database operations, and agent API calls. Includes deletable demo features for testing deployment.",
-  "icon": "Boxes",
-  "defaultPath": "/myapp",
-  "defaultPort": 3002,
+  "description": "Track and visualize the status of AI initiatives with intelligent status updates via conversational AI agents.",
+  "icon": "BarChart3",
+  "defaultPath": "/status",
+  "defaultPort": 3003,
   "healthEndpoint": "/api/health",
   "buildCommand": "npm run build",
   "startCommand": "npm start",
-  "appMode": "prisma",
+  "appMode": "frontend",
   "database": {
-    "required": true,
-    "preferredName": "app_template_demo",
-    "schemaManagement": "prisma",
-    "seedCommand": "npm run db:seed"
+    "required": false
   },
-  "requiredEnvVars": [],
-  "optionalEnvVars": [
-    "NEXT_PUBLIC_DEBUG",
-    "DEMO_AGENT_API_URL"
+  "requiredEnvVars": [
+    "DATA_API_URL",
+    "AGENT_API_URL"
   ],
-  "busiboxAppVersion": "^2.1.17"
+  "optionalEnvVars": [
+    "NEXT_PUBLIC_DEBUG"
+  ],
+  "busiboxAppVersion": "^2.1.34"
 }

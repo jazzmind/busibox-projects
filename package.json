@@ -1,23 +1,16 @@
 {
-  "name": "busibox-app-template",
-  "version": "0.1.0",
+  "name": "status-report",
+  "version": "1.0.0",
   "private": true,
-  "description": "Busibox Next.js App Template - supports both frontend-only and Prisma modes",
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
-  },
+  "description": "AI Initiative Status - Track and visualize project status with intelligent updates",
   "scripts": {
-    "dev": "next dev -p 3002",
+    "dev": "next dev -p 3003",
     "build": "next build",
-    "start": "next start -p 3002",
+    "start": "next start -p 3003",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "next lint",
-    "db:push": "prisma db push",
-    "db:generate": "prisma generate",
-    "db:seed": "prisma db seed",
-    "db:studio": "prisma studio",
     "update:busibox-app": "./scripts/update-busibox-app.sh",
     "link:busibox": "./scripts/link-local-busibox.sh",
     "unlink:busibox": "./scripts/unlink-local-busibox.sh"
@@ -29,9 +22,6 @@
     "next": "^16.0.10",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
-  },
-  "optionalDependencies": {
-    "@prisma/client": "^6.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -48,7 +38,6 @@
     "eslint": "^8",
     "eslint-config-next": "^15",
     "jsdom": "^25.0.1",
-    "prisma": "^6.0.0",
     "tailwindcss": "^4",
     "tsx": "^4.19.2",
     "typescript": "^5"

@@ -8,15 +8,14 @@ import {
 } from "@jazzmind/busibox-app";
 import type { PortalCustomization } from "@jazzmind/busibox-app";
 
-// Default customization - update these for your app
 const defaultCustomization: PortalCustomization = {
   companyName: "Busibox",
-  siteName: "My App",
-  slogan: "Built with Busibox App Template",
+  siteName: "AI Initiative Status",
+  slogan: "Track project progress with intelligent updates",
   logoUrl: null,
   faviconUrl: null,
-  primaryColor: "#0f172a", // slate-900
-  secondaryColor: "#334155", // slate-700
+  primaryColor: "#2563eb", // blue-600
+  secondaryColor: "#1d4ed8", // blue-700
   textColor: "#ffffff",
   addressLine1: "",
   addressLine2: null,

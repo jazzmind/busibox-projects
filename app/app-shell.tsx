@@ -2,26 +2,31 @@
 
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { FetchWrapper, Footer, VersionBar, AuthProvider, useAuth } from '@jazzmind/busibox-app';
 import type { SessionData } from '@jazzmind/busibox-app';
 import { CustomHeader } from '@/components/CustomHeader';
+import { cn } from '@jazzmind/busibox-app/lib/utils';
 
 function AppShellContent({ children, basePath }: { children: React.ReactNode; basePath: string }) {
   const { isReady, refreshKey, authState, redirectToPortal, logout } = useAuth();
   const [session, setSession] = useState<SessionData>({ user: null, isAuthenticated: false });
+  const pathname = usePathname();
   
   // Portal URL - must be configured via NEXT_PUBLIC_AI_PORTAL_URL
-  // Empty string disables portal links
   const portalUrl = process.env.NEXT_PUBLIC_AI_PORTAL_URL || '';
   
   // App home link - use "/" since Next.js Link automatically prepends basePath
-  // The basePath is configured in next.config.ts
   const appHomeLink = '/';
+
+  // Navigation items
+  const navItems = [
+    { href: '/', label: 'Dashboard' },
+    { href: '/chat', label: 'Chat' },
+  ];
 
   // URLs to skip auth handling for
   const skipAuthUrls = useMemo(() => [
-    // These should always include basePath (Next.js basePath affects API routes too).
-    // Keep the non-basePath variants as a safety net for local/dev setups.
     `${basePath}/api/auth/refresh`,
     `${basePath}/api/auth/exchange`,
     `${basePath}/api/session`,
@@ -32,7 +37,7 @@ function AppShellContent({ children, basePath }: { children: React.ReactNode; ba
     '/api/session',
     '/api/logout',
     '/api/health',
-  ], []);
+  ], [basePath]);
 
   // Use system-wide logout from auth context
   const onLogout = useCallback(async () => {
@@ -74,13 +79,21 @@ function AppShellContent({ children, basePath }: { children: React.ReactNode; ba
     return () => {
       cancelled = true;
     };
-  }, [isReady, refreshKey]);
+  }, [isReady, refreshKey, basePath]);
 
   // Handle auth errors - redirect to portal
   const handleAuthError = useCallback(() => {
     console.log('[AppShell] Auth error, redirecting to portal');
     redirectToPortal('session_expired');
   }, [redirectToPortal]);
+
+  // Check if path is active
+  const isActive = (href: string) => {
+    if (href === '/') {
+      return pathname === '/' || pathname === basePath || pathname === `${basePath}/`;
+    }
+    return pathname?.startsWith(href) || pathname?.startsWith(`${basePath}${href}`);
+  };
 
   return (
     <>
@@ -95,20 +108,26 @@ function AppShellContent({ children, basePath }: { children: React.ReactNode; ba
         portalUrl={portalUrl}
         accountLink={`${process.env.NEXT_PUBLIC_AI_PORTAL_URL || ''}/account`}
         appHomeLink={appHomeLink}
-        appName="My App"
+        appName="AI Initiative Status"
         adminNavigation={[]}
       />
       {/* App navigation */}
       <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-12 flex items-center gap-6">
-          <Link href="/" className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400">
-            Home
-          </Link>
-          {/* DEMO LINK - DELETE WHEN BUILDING REAL APP */}
-          <Link href="/demo" className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400">
-            Demo Features
-          </Link>
-          {/* Add more navigation links as needed */}
+          {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                'text-sm font-medium transition-colors',
+                isActive(item.href)
+                  ? 'text-blue-600 dark:text-blue-400'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+              )}
+            >
+              {item.label}
+            </Link>
+          ))}
         </div>
       </nav>
       <main className="flex-1">{children}</main>
@@ -120,7 +139,7 @@ function AppShellContent({ children, basePath }: { children: React.ReactNode; ba
 
 export function AppShell({ children, basePath }: { children: React.ReactNode; basePath: string }) {
   const portalUrl = process.env.NEXT_PUBLIC_AI_PORTAL_URL || '';
-  const appId = process.env.APP_NAME || 'app-template';
+  const appId = process.env.APP_NAME || 'status-report';
   
   return (
     <AuthProvider

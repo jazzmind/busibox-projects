@@ -1,5 +1,5 @@
 /**
- * Shared Types for Busibox App Template
+ * Shared Types for Status Report App
  */
 
 // ==========================================================================
@@ -51,17 +51,167 @@ export interface PaginatedResponse<T> {
 }
 
 // ==========================================================================
-// Common Types
+// Project Types
 // ==========================================================================
 
-export interface BaseEntity {
+export type ProjectStatus = "on-track" | "at-risk" | "off-track" | "completed" | "paused";
+
+export interface Project {
   id: string;
+  name: string;
+  description?: string;
+  status: ProjectStatus;
+  progress: number; // 0-100
+  nextCheckpoint?: string;
+  checkpointDate?: string; // ISO date
+  checkpointProgress: number; // 0-100
+  owner?: string;
+  team: string[];
+  tags: string[];
   createdAt: string;
   updatedAt: string;
 }
 
-export interface OrganizationEntity extends BaseEntity {
-  organizationId: string;
+export interface CreateProjectInput {
+  name: string;
+  description?: string;
+  status?: ProjectStatus;
+  progress?: number;
+  nextCheckpoint?: string;
+  checkpointDate?: string;
+  checkpointProgress?: number;
+  owner?: string;
+  team?: string[];
+  tags?: string[];
+}
+
+export interface UpdateProjectInput {
+  name?: string;
+  description?: string;
+  status?: ProjectStatus;
+  progress?: number;
+  nextCheckpoint?: string;
+  checkpointDate?: string;
+  checkpointProgress?: number;
+  owner?: string;
+  team?: string[];
+  tags?: string[];
+}
+
+// ==========================================================================
+// Task Types
+// ==========================================================================
+
+export type TaskStatus = "todo" | "in-progress" | "blocked" | "done";
+export type TaskPriority = "low" | "medium" | "high" | "critical";
+
+export interface Task {
+  id: string;
+  projectId: string;
+  title: string;
+  description?: string;
+  status: TaskStatus;
+  assignee?: string;
+  priority: TaskPriority;
+  dueDate?: string;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTaskInput {
+  projectId: string;
+  title: string;
+  description?: string;
+  status?: TaskStatus;
+  assignee?: string;
+  priority?: TaskPriority;
+  dueDate?: string;
+  order?: number;
+}
+
+export interface UpdateTaskInput {
+  title?: string;
+  description?: string;
+  status?: TaskStatus;
+  assignee?: string;
+  priority?: TaskPriority;
+  dueDate?: string;
+  order?: number;
+}
+
+// ==========================================================================
+// Status Update Types
+// ==========================================================================
+
+export interface StatusUpdate {
+  id: string;
+  projectId: string;
+  content: string; // Markdown
+  author?: string;
+  tasksCompleted: string[];
+  tasksAdded: string[];
+  previousStatus?: ProjectStatus;
+  newStatus?: ProjectStatus;
+  createdAt: string;
+}
+
+export interface CreateStatusUpdateInput {
+  projectId: string;
+  content: string;
+  author?: string;
+  tasksCompleted?: string[];
+  tasksAdded?: string[];
+  previousStatus?: ProjectStatus;
+  newStatus?: ProjectStatus;
+}
+
+// ==========================================================================
+// Data Document Types (for data-api)
+// ==========================================================================
+
+export interface DataDocument {
+  id: string;
+  name: string;
+  schema?: DataSchema;
+  recordCount: number;
+  visibility: "personal" | "shared";
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DataSchema {
+  fields: Record<string, FieldDefinition>;
+  indexes?: string[];
+  embedFields?: string[];
+}
+
+export interface FieldDefinition {
+  type: "string" | "integer" | "number" | "boolean" | "array" | "object" | "enum";
+  required?: boolean;
+  values?: string[]; // For enum types
+  min?: number;
+  max?: number;
+}
+
+export interface QueryFilter {
+  field: string;
+  op: "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "in" | "nin" | "contains" | "startswith" | "endswith";
+  value: unknown;
+}
+
+export interface QueryCondition {
+  and?: (QueryFilter | QueryCondition)[];
+  or?: (QueryFilter | QueryCondition)[];
+}
+
+export interface QueryOptions {
+  select?: string[];
+  where?: QueryFilter | QueryCondition;
+  orderBy?: { field: string; direction: "asc" | "desc" }[];
+  limit?: number;
+  offset?: number;
 }
 
 // ==========================================================================
@@ -74,3 +224,23 @@ export type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
 export type RequiredFields<T, K extends keyof T> = Omit<T, K> &
   Required<Pick<T, K>>;
+
+// ==========================================================================
+// Dashboard Types
+// ==========================================================================
+
+export interface ProjectWithTasks extends Project {
+  tasks: Task[];
+  recentUpdates: StatusUpdate[];
+}
+
+export interface DashboardData {
+  projects: ProjectWithTasks[];
+  stats: {
+    totalProjects: number;
+    onTrack: number;
+    atRisk: number;
+    offTrack: number;
+    completed: number;
+  };
+}

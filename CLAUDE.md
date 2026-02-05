@@ -4,12 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) and Cursor AI when w
 
 ## Project Overview
 
-**Busibox App Template** is a Next.js 16 application template designed for rapid development of apps that integrate with the Busibox infrastructure. It supports two operational modes:
+**Status Report** is a Next.js application for tracking and visualizing the status of AI initiatives with intelligent status updates via conversational AI agents. It integrates with the Busibox infrastructure using frontend-only mode (no direct database access).
 
-1. **Frontend-Only Mode** (APP_MODE=frontend): Pure frontend with API proxying to backend services
-2. **Prisma Mode** (APP_MODE=prisma): Direct database access via Prisma ORM
-
-**Key Architecture**: Choose your mode based on whether your app needs direct database access or will proxy to existing backend APIs.
+**Key Architecture**: Pure frontend with data stored via data-api and intelligent chat via agent-api. No Prisma or direct database access.
 
 ## Quick Start
 
@@ -19,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) and Cursor AI when w
 # Install dependencies
 npm install
 
-# Run development server (port 3002)
+# Run development server (port 3003)
 npm run dev
 
 # Build for production
@@ -28,18 +25,8 @@ npm run build
 # Start production server
 npm start
 
-# Testing
-npm test                 # Run tests
-npm run test:watch       # Watch mode
-npm run test:coverage    # With coverage
-
 # Linting
 npm run lint
-
-# Database (Prisma mode only)
-npm run db:push          # Push schema changes
-npm run db:generate      # Generate Prisma client
-npm run db:studio        # Open Prisma Studio
 ```
 
 ### Environment Setup
@@ -49,6 +36,18 @@ cp env.example .env.local
 # Edit .env.local with your settings
 ```
 
+### Initial Setup
+
+On first run, the app automatically initializes data documents. You can also manually initialize:
+
+```bash
+# Via API
+curl -X POST http://localhost:3003/api/setup
+
+# Seed agents (one-time)
+AGENT_API_URL=http://localhost:8000 AUTH_TOKEN=your-token npx tsx scripts/seed-agents.ts
+```
+
 ### Deployment
 
 **From Busibox Admin Workstation**:
@@ -56,19 +55,20 @@ cp env.example .env.local
 cd /path/to/busibox/provision/ansible
 
 # Deploy to production:
-make deploy-<app-name>
+make install SERVICE=status-report
 
 # Deploy to staging:
-make deploy-<app-name> INV=inventory/staging
+make install SERVICE=status-report INV=inventory/staging
 ```
 
 ## Architecture
 
 ### Tech Stack
 
-- **Framework**: Next.js 16 (App Router with Turbopack)
+- **Framework**: Next.js 16 (App Router)
 - **UI**: React 19, TypeScript 5, Tailwind CSS 4
-- **Database**: Prisma 6 (optional, for prisma mode)
+- **Storage**: Busibox data-api (no direct database)
+- **Chat**: Busibox agent-api with custom agents
 - **Auth**: Busibox SSO via authz service (JWKS/RS256)
 - **Shared Components**: @jazzmind/busibox-app
 - **Deployment**: PM2, nginx (apps-lxc container), Ansible
@@ -76,306 +76,188 @@ make deploy-<app-name> INV=inventory/staging
 ### Project Structure
 
 ```
-app-template/
-├── app/                    # Next.js App Router
-│   ├── api/               # API routes
-│   │   ├── auth/          # Authentication endpoints
-│   │   ├── health/        # Health check
-│   │   ├── session/       # Session management
-│   │   └── sso/           # SSO callback
-│   ├── layout.tsx         # Root layout with providers
-│   ├── page.tsx           # Home page
-│   ├── globals.css        # Tailwind CSS
-│   ├── providers.tsx      # Client providers
-│   └── app-shell.tsx      # App shell with auth
-├── components/            # React components
-│   └── auth/              # Auth components
-├── lib/                   # Utilities
-│   ├── auth-middleware.ts # Auth middleware
-│   ├── authz-client.ts    # AuthZ service client
-│   ├── sso.ts             # SSO validation (JWKS)
-│   ├── prisma.ts          # Prisma client (prisma mode)
-│   ├── api-client.ts      # API client (frontend mode)
-│   └── types.ts           # Shared types
-├── prisma/                # Prisma schema
-├── scripts/               # Utility scripts
-└── test/                  # Test setup
+status-report/
+├── app/                           # Next.js App Router
+│   ├── api/                       # API routes
+│   │   ├── chat/status/           # Agent chat proxy
+│   │   ├── projects/              # Project CRUD
+│   │   ├── projects/[id]/         # Single project
+│   │   ├── projects/[id]/tasks/   # Project tasks
+│   │   ├── projects/[id]/updates/ # Status updates
+│   │   ├── tasks/[taskId]/        # Single task
+│   │   └── setup/                 # Initialize data documents
+│   ├── projects/[id]/             # Project detail page
+│   ├── projects/[id]/update/      # Status update chat
+│   ├── chat/                      # General project chat
+│   ├── page.tsx                   # Dashboard
+│   ├── layout.tsx                 # Root layout
+│   └── providers.tsx              # Client providers
+├── components/
+│   ├── projects/                  # Project components
+│   │   ├── ProjectCard.tsx        # Project card with progress
+│   │   ├── ProgressBar.tsx        # Progress visualization
+│   │   ├── StatusBadge.tsx        # Status/priority badges
+│   │   ├── TaskList.tsx           # Task list with actions
+│   │   └── StatusTimeline.tsx     # Update history
+│   ├── auth/                      # Auth components
+│   └── CustomHeader.tsx           # App header
+├── lib/
+│   ├── data-api-client.ts         # Data-API client (projects, tasks, updates)
+│   ├── status-agent.ts            # Agent configurations
+│   ├── auth-middleware.ts         # Auth middleware
+│   └── types.ts                   # TypeScript types
+└── scripts/
+    └── seed-agents.ts             # Seed agents script
 ```
 
-### Operational Modes
+### Data Model
 
-#### Frontend-Only Mode (APP_MODE=frontend)
+Data is stored in three data-api documents:
 
-Use when your app proxies to existing backend APIs:
+**Projects** (`status-report-projects`):
+- id, name, description
+- status (on-track, at-risk, off-track, completed, paused)
+- progress, checkpointProgress, nextCheckpoint, checkpointDate
+- owner, team, tags
 
-```typescript
-// app/api/items/route.ts
-export async function GET(request: NextRequest) {
-  const auth = await requireAuthWithTokenExchange(request);
-  if (auth instanceof NextResponse) return auth;
+**Tasks** (`status-report-tasks`):
+- id, projectId, title, description
+- status (todo, in-progress, blocked, done)
+- assignee, priority, dueDate, order
 
-  const response = await fetch(`${BACKEND_API_URL}/items`, {
-    headers: { 'Authorization': `Bearer ${auth.apiToken}` },
-  });
+**Status Updates** (`status-report-updates`):
+- id, projectId, content (markdown)
+- author, tasksCompleted, tasksAdded
+- previousStatus, newStatus
 
-  return NextResponse.json(await response.json());
-}
-```
+### Agents
 
-#### Prisma Mode (APP_MODE=prisma)
+Two custom agents for intelligent interactions:
 
-Use when your app needs direct database access:
+1. **status-update**: Guides users through quick status updates
+   - Asks about completed work, blockers, next steps
+   - Updates task statuses
+   - Records status updates
+   - Suggests project status changes
 
-```typescript
-// app/api/items/route.ts
-import { prisma } from '@/lib/prisma';
-
-export async function GET(request: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const items = await prisma.item.findMany({
-    where: { organizationId: session.organizationId },
-  });
-
-  return NextResponse.json(items);
-}
-```
+2. **status-assistant**: Answers questions about projects
+   - Reports on project status
+   - Identifies at-risk projects
+   - Searches historical updates
+   - Provides insights and summaries
 
 ## Key Patterns
 
 ### 1. Authentication (Busibox SSO)
 
-All apps use Busibox SSO with Zero Trust token exchange:
-
-```typescript
-// Token flow:
-// 1. User clicks app in AI Portal
-// 2. AI Portal exchanges session JWT for app-scoped token via authz
-// 3. authz verifies user has app access via RBAC
-// 4. authz issues RS256 token with app_id claim
-// 5. App validates token via authz JWKS endpoint
-// 6. AuthContext exchanges token via POST /api/sso to set cookies
-```
-
-**Client-side Token Exchange (AuthContext):**
-
-The `AuthContext` component handles token exchange from URL parameters:
-
-```typescript
-// IMPORTANT: Use POST to /api/sso for token exchange
-// Do NOT use GET with redirect: 'manual' - browsers don't process 
-// Set-Cookie headers from redirect responses in manual mode
-const response = await fetch('/api/sso', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ token }),
-  credentials: 'include',
-});
-```
-
-**Server-side Auth Middleware (API routes):**
+All API routes use Zero Trust token exchange:
 
 ```typescript
 import { requireAuthWithTokenExchange } from '@/lib/auth-middleware';
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAuthWithTokenExchange(request);
+  const auth = await requireAuthWithTokenExchange(request, 'data-api');
   if (auth instanceof NextResponse) return auth;
 
-  // auth.ssoToken - original session JWT
-  // auth.apiToken - exchanged API token
+  // Use auth.apiToken for data-api calls
 }
 ```
 
-### 2. Server vs Client Components
+### 2. Data-API Storage
 
-**Default to Server Components**:
+All storage operations go through the data-api client:
+
 ```typescript
-// app/items/page.tsx
-export default async function ItemsPage() {
-  const items = await fetchItems();
-  return <ItemList items={items} />;
-}
+import { 
+  ensureDataDocuments,
+  listProjects,
+  createProject,
+  updateTask 
+} from '@/lib/data-api-client';
+
+// Ensure documents exist
+const documentIds = await ensureDataDocuments(token);
+
+// Query projects
+const { projects } = await listProjects(token, documentIds.projects);
+
+// Create project
+const project = await createProject(token, documentIds.projects, { name: 'My Project' });
 ```
 
-**Use Client Components for interactivity**:
-```typescript
-// components/ItemForm.tsx
-'use client';
+### 3. Chat Integration
 
-import { useState } from 'react';
-
-export function ItemForm() {
-  const [value, setValue] = useState('');
-  // Client-side state and effects
-}
-```
-
-### 3. Dynamic Route Parameters (Next.js 16)
-
-Route params are async and must be awaited:
+Uses `SimpleChatInterface` from `@jazzmind/busibox-app`:
 
 ```typescript
-// app/items/[id]/page.tsx
-interface PageProps {
-  params: Promise<{ id: string }>;
-}
-
-export default async function ItemPage({ params }: PageProps) {
-  const { id } = await params;
-  const item = await fetchItem(id);
-
-  if (!item) notFound();
-
-  return <ItemDetail item={item} />;
-}
-```
-
-### 4. API Route Params
-
-```typescript
-// app/api/items/[id]/route.ts
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
-
-export async function GET(
-  request: NextRequest,
-  { params }: RouteParams
-) {
-  const { id } = await params;
-  // ...
-}
+<SimpleChatInterface
+  token={apiToken}
+  agentId="status-update"
+  placeholder="What did you work on today?"
+  welcomeMessage={buildWelcomeMessage()}
+  enableDocSearch={true}
+  useAgenticStreaming={true}
+/>
 ```
 
 ## Environment Variables
 
-### Required (All Modes)
+### Required
 
 ```bash
 # Application
 NODE_ENV=development
-PORT=3002
-NEXT_PUBLIC_BASE_PATH=          # e.g., /myapp for nginx proxy
-NEXT_PUBLIC_APP_URL=http://localhost:3002
+PORT=3003
+APP_NAME=status-report
 
 # Authentication
 NEXT_PUBLIC_AI_PORTAL_URL=http://localhost:3000
 AUTHZ_BASE_URL=http://localhost:8010
-AUTHZ_CLIENT_ID=my-app
+
+# Backend Services
+DATA_API_URL=http://localhost:8002
+AGENT_API_URL=http://localhost:8000
+```
+
+### Optional
+
+```bash
+NEXT_PUBLIC_BASE_PATH=           # /status for nginx proxy
+AUTHZ_CLIENT_ID=status-report
 AUTHZ_CLIENT_SECRET=secret
-APP_NAME=My App                 # For token audience validation
-```
-
-### Frontend-Only Mode
-
-```bash
-# Backend API URLs
-NEXT_PUBLIC_BACKEND_API_URL=http://localhost:8000
-```
-
-### Prisma Mode
-
-```bash
-# Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/myapp
+VERBOSE_AUTHZ_LOGGING=false
 ```
 
 ## Development Workflow
 
-### Adding a New Feature
+### Adding Features
 
-1. **Plan the feature**:
-   - Determine if frontend-only or prisma access needed
-   - Design UI components
-   - Define API routes
+1. **Data changes**: Update types in `lib/types.ts`, update client in `lib/data-api-client.ts`
+2. **API routes**: Add routes in `app/api/`
+3. **UI components**: Add to `components/projects/`
+4. **Pages**: Add to `app/`
 
-2. **Create API routes**:
-   ```typescript
-   // app/api/feature/route.ts
-   export async function GET(request: NextRequest) {
-     // Implementation based on mode
-   }
-   ```
+### Agent Changes
 
-3. **Create components**:
-   ```typescript
-   // components/feature/FeatureComponent.tsx
-   export function FeatureComponent() {
-     // Implementation
-   }
-   ```
-
-4. **Add pages**:
-   ```typescript
-   // app/feature/page.tsx
-   export default function FeaturePage() {
-     // Implementation
-   }
-   ```
-
-### Adding Database Models (Prisma Mode)
-
-1. Edit `prisma/schema.prisma`
-2. Run `npm run db:push` (development) or create migration
-3. Run `npm run db:generate`
-
-## Testing
-
-### Unit Tests
-
-```bash
-npm test
-```
-
-### Writing Tests
-
-```typescript
-// app/api/items/route.test.ts
-import { describe, it, expect } from 'vitest';
-
-describe('Items API', () => {
-  it('should return items for authenticated user', async () => {
-    // Test implementation
-  });
-});
-```
+1. Update agent config in `lib/status-agent.ts`
+2. Re-run seed script: `npx tsx scripts/seed-agents.ts`
 
 ## Busibox Integration
 
-### Shared Components
+### Service Dependencies
 
-The `@jazzmind/busibox-app` package provides:
-
-- **ThemeProvider**: Dark/light mode
-- **BusiboxApiProvider**: API configuration
-- **CustomizationProvider**: Branding
-- **FetchWrapper**: Auth-aware fetch
-- **Footer, VersionBar**: Standard UI elements
+- **Data API** (data-lxc): Stores projects, tasks, updates
+- **Agent API** (agent-lxc): Powers chat interactions
+- **Apps Container** (apps-lxc): Hosts the Next.js application
 
 ### Deployment
 
-Apps are deployed to the apps-lxc container via Ansible:
+Apps are deployed via Ansible:
 
 1. Code pushed to GitHub
 2. Ansible pulls and deploys
 3. PM2 manages the process
-4. nginx proxies requests
-
-### Service Discovery
-
-```bash
-# Production IPs
-AI Portal:    10.96.200.201:3000
-AuthZ:        10.96.200.210:8010
-Apps LXC:     10.96.200.201
-
-# Staging IPs
-AI Portal:    10.96.201.201:3000
-AuthZ:        10.96.201.210:8010
-Apps LXC:     10.96.201.201
-```
+4. nginx proxies requests at `/status`
 
 ## Best Practices
 
@@ -384,29 +266,20 @@ Apps LXC:     10.96.201.201
 - Use TypeScript for type safety
 - Follow Next.js App Router conventions
 - Use Server Components by default
-- Keep components small and focused
+- Keep components focused
 - Use Tailwind CSS for styling
 
-### API Routes
+### Data Operations
 
-- Always authenticate requests
-- Handle errors gracefully
-- Return appropriate status codes
-- Use proper TypeScript types
-
-### Database (Prisma Mode)
-
-- Always filter by organizationId for multi-tenant data
-- Use transactions for multi-record operations
-- Handle errors with try/catch
-- Use `prisma db push` for development, migrations for production
+- Use `ensureDataDocuments()` before CRUD operations
+- Handle not-found cases properly
+- Use optimistic updates for UI responsiveness
 
 ### Security
 
-- Never expose secrets in client code
+- Never expose tokens in client code
+- Use `requireAuthWithTokenExchange()` for all authenticated routes
 - Validate all user input
-- Use RBAC for authorization
-- Log security events
 
 ## Troubleshooting
 
@@ -420,6 +293,26 @@ curl http://authz:8010/health
 curl http://authz:8010/.well-known/jwks.json
 ```
 
+### Data-API Issues
+
+```bash
+# Check data-api health
+curl http://data-api:8002/health
+
+# List data documents (with token)
+curl -H "Authorization: Bearer $TOKEN" http://data-api:8002/data
+```
+
+### Agent Issues
+
+```bash
+# Check agent-api health
+curl http://agent-api:8000/health
+
+# List agents
+curl -H "Authorization: Bearer $TOKEN" http://agent-api:8000/agents
+```
+
 ### Build Issues
 
 ```bash
@@ -431,27 +324,17 @@ rm -rf node_modules package-lock.json
 npm install
 ```
 
-### Prisma Issues
-
-```bash
-# Regenerate client
-npm run db:generate
-
-# Reset database (development only)
-npx prisma db push --force-reset  # CAUTION: destroys data
-```
-
 ## Related Projects
 
 - **Busibox**: Infrastructure and deployment automation
 - **AI Portal**: Main dashboard application
 - **Busibox-App**: Shared component library (@jazzmind/busibox-app)
-- **Agent Manager**: Reference implementation (frontend-only mode)
+- **App Template**: Base template this was built from
 
 ## Important Notes
 
-1. **Choose your mode**: Set APP_MODE=frontend or APP_MODE=prisma based on your needs
-2. **Authentication**: All apps use Busibox SSO - no custom auth needed
-3. **Deployment**: Always use Ansible for deployment to Busibox infrastructure
-4. **Port**: Default port is 3002 (adjust in env if needed)
-5. **Base Path**: Configure NEXT_PUBLIC_BASE_PATH for nginx proxy routing
+1. **Frontend Mode**: Uses data-api for all storage, no direct database
+2. **Authentication**: Uses Busibox SSO with Zero Trust token exchange
+3. **Agents**: Requires seeding agents via `scripts/seed-agents.ts`
+4. **Dev Port**: 3003
+5. **Base Path**: `/status` when deployed via nginx proxy
