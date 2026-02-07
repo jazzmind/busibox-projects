@@ -177,17 +177,17 @@ export async function ensureDataDocuments(token: string): Promise<{
   let updatesDoc = documents.find(d => d.name === DOCUMENTS.UPDATES);
 
   if (!projectsDoc) {
-    const created = await createDataDocument(token, DOCUMENTS.PROJECTS, projectSchema, 'shared');
+    const created = await createDataDocument(token, DOCUMENTS.PROJECTS, projectSchema, 'personal');
     projectsDoc = { id: created.id, name: created.name, recordCount: 0 };
   }
 
   if (!tasksDoc) {
-    const created = await createDataDocument(token, DOCUMENTS.TASKS, taskSchema, 'shared');
+    const created = await createDataDocument(token, DOCUMENTS.TASKS, taskSchema, 'personal');
     tasksDoc = { id: created.id, name: created.name, recordCount: 0 };
   }
 
   if (!updatesDoc) {
-    const created = await createDataDocument(token, DOCUMENTS.UPDATES, updateSchema, 'shared');
+    const created = await createDataDocument(token, DOCUMENTS.UPDATES, updateSchema, 'personal');
     updatesDoc = { id: created.id, name: created.name, recordCount: 0 };
   }
 
