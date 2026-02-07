@@ -16,12 +16,14 @@
     "unlink:busibox": "./scripts/unlink-local-busibox.sh"
   },
   "dependencies": {
-    "@jazzmind/busibox-app": "^2.1.34",
+    "@jazzmind/busibox-app": "^2.1.39",
+    "clsx": "^2.1.1",
     "jose": "^6.1.2",
     "lucide-react": "^0.469.0",
     "next": "^16.0.10",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
