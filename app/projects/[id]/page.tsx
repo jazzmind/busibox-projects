@@ -47,6 +47,16 @@ export default function ProjectDetailPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
+  
+  // New task modal state
+  const [showNewTaskModal, setShowNewTaskModal] = useState(false);
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [newTask, setNewTask] = useState({
+    title: '',
+    description: '',
+    priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
+    assignee: '',
+  });
 
   const fetchProject = async () => {
     try {
@@ -86,6 +96,47 @@ export default function ProjectDetailPage({ params }: PageProps) {
   const handleUpdateStatus = () => {
     // Note: router.push automatically prepends basePath from next.config.ts
     router.push(`/projects/${id}/update`);
+  };
+
+  const handleAddTask = () => {
+    setNewTask({ title: '', description: '', priority: 'medium', assignee: '' });
+    setShowNewTaskModal(true);
+  };
+
+  const handleCreateTask = async () => {
+    if (!newTask.title.trim() || !data) return;
+
+    try {
+      setIsCreatingTask(true);
+
+      const response = await fetch(`${basePath}/api/projects/${id}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newTask,
+          projectId: id,
+          status: 'todo',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create task');
+      }
+
+      const createdTask = await response.json();
+      
+      // Add to local state
+      setData({
+        ...data,
+        tasks: [...data.tasks, createdTask],
+      });
+      
+      setShowNewTaskModal(false);
+    } catch (err) {
+      console.error('Failed to create task:', err);
+    } finally {
+      setIsCreatingTask(false);
+    }
   };
 
   const handleTaskStatusChange = async (taskId: string, newStatus: TaskStatus) => {
@@ -164,7 +215,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
               {error || 'Project not found'}
             </h2>
             <Link
-              href={`${basePath}/`}
+              href="/"
               className="text-blue-600 dark:text-blue-400 hover:underline"
             >
               Return to dashboard
@@ -186,7 +237,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {/* Back link */}
           <Link
-            href={`${basePath}/`}
+            href="/"
             className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-4"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -249,7 +300,10 @@ export default function ProjectDetailPage({ params }: PageProps) {
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Tasks
               </h2>
-              <button className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline">
+              <button 
+                onClick={handleAddTask}
+                className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              >
                 <Plus className="w-4 h-4" />
                 Add Task
               </button>
@@ -343,6 +397,93 @@ export default function ProjectDetailPage({ params }: PageProps) {
           </div>
         </div>
       </div>
+
+      {/* New Task Modal */}
+      {showNewTaskModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+              New Task
+            </h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Title *
+                </label>
+                <input
+                  type="text"
+                  value={newTask.title}
+                  onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                  placeholder="Task title"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={newTask.description}
+                  onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                  placeholder="Task description (optional)"
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Priority
+                  </label>
+                  <select
+                    value={newTask.priority}
+                    onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent' })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Assignee
+                  </label>
+                  <input
+                    type="text"
+                    value={newTask.assignee}
+                    onChange={(e) => setNewTask({ ...newTask, assignee: e.target.value })}
+                    placeholder="Optional"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowNewTaskModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateTask}
+                disabled={!newTask.title.trim() || isCreatingTask}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isCreatingTask ? 'Creating...' : 'Create Task'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

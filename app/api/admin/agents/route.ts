@@ -27,43 +27,28 @@ export async function GET(request: NextRequest) {
   try {
     const statuses: AgentStatus[] = [];
 
-    for (const agent of AGENT_DEFINITIONS) {
-      try {
-        // Try to fetch agent by name
-        const response = await fetch(`${AGENT_API_URL}/agents/definitions?name=${agent.name}`, {
-          headers: {
-            'Authorization': `Bearer ${auth.apiToken}`,
-          },
-        });
+    // Fetch all agents once
+    const response = await fetch(`${AGENT_API_URL}/agents`, {
+      headers: {
+        'Authorization': `Bearer ${auth.apiToken}`,
+      },
+    });
 
-        if (response.ok) {
-          const data = await response.json();
-          const existingAgent = data.agents?.find((a: { name: string }) => a.name === agent.name);
-          
-          statuses.push({
-            name: agent.name,
-            displayName: agent.display_name,
-            description: agent.description,
-            exists: !!existingAgent,
-            id: existingAgent?.id,
-          });
-        } else {
-          statuses.push({
-            name: agent.name,
-            displayName: agent.display_name,
-            description: agent.description,
-            exists: false,
-          });
-        }
-      } catch (err) {
-        statuses.push({
-          name: agent.name,
-          displayName: agent.display_name,
-          description: agent.description,
-          exists: false,
-          error: err instanceof Error ? err.message : 'Unknown error',
-        });
-      }
+    let existingAgents: { id: string; name: string }[] = [];
+    if (response.ok) {
+      existingAgents = await response.json();
+    }
+
+    for (const agent of AGENT_DEFINITIONS) {
+      const existingAgent = existingAgents.find((a) => a.name === agent.name);
+      
+      statuses.push({
+        name: agent.name,
+        displayName: agent.display_name,
+        description: agent.description,
+        exists: !!existingAgent,
+        id: existingAgent?.id,
+      });
     }
 
     return NextResponse.json({
@@ -94,20 +79,21 @@ export async function POST(request: NextRequest) {
   try {
     const results: { name: string; success: boolean; action: string; id?: string; error?: string }[] = [];
 
+    // Fetch all agents once to check which exist
+    const checkResponse = await fetch(`${AGENT_API_URL}/agents`, {
+      headers: {
+        'Authorization': `Bearer ${auth.apiToken}`,
+      },
+    });
+
+    let allExistingAgents: { id: string; name: string }[] = [];
+    if (checkResponse.ok) {
+      allExistingAgents = await checkResponse.json();
+    }
+
     for (const agent of AGENT_DEFINITIONS) {
       try {
-        // First, check if agent exists
-        const checkResponse = await fetch(`${AGENT_API_URL}/agents/definitions?name=${agent.name}`, {
-          headers: {
-            'Authorization': `Bearer ${auth.apiToken}`,
-          },
-        });
-
-        let existingAgent: { id: string; name: string } | null = null;
-        if (checkResponse.ok) {
-          const data = await checkResponse.json();
-          existingAgent = data.agents?.find((a: { name: string }) => a.name === agent.name);
-        }
+        const existingAgent = allExistingAgents.find((a) => a.name === agent.name) || null;
 
         if (existingAgent && forceUpdate) {
           // Update existing agent

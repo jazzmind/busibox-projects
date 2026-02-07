@@ -32,7 +32,8 @@ export function ProjectCard({
   onUpdateClick,
   className,
 }: ProjectCardProps) {
-  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+  // Note: Next.js Link component automatically handles basePath from next.config.ts
+  // Don't manually prefix with basePath
 
   return (
     <div
@@ -48,7 +49,7 @@ export function ProjectCard({
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <Link
-              href={`${basePath}/projects/${project.id}`}
+              href={`/projects/${project.id}`}
               className="group flex items-center gap-2"
             >
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
@@ -103,7 +104,7 @@ export function ProjectCard({
             Upcoming Tasks
           </span>
           <Link
-            href={`${basePath}/projects/${project.id}`}
+            href={`/projects/${project.id}`}
             className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
           >
             View all

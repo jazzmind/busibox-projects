@@ -125,7 +125,7 @@ What have you been working on?`;
               {error || 'Project not found'}
             </h2>
             <Link
-              href={`${basePath}/`}
+              href="/"
               className="text-blue-600 dark:text-blue-400 hover:underline"
             >
               Return to dashboard
