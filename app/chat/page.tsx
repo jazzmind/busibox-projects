@@ -9,7 +9,7 @@ import type { Project } from '@/lib/types';
 
 export default function GeneralChatPage() {
   const router = useRouter();
-  const { authState } = useAuth();
+  const { isReady, refreshKey, authState } = useAuth();
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
   const agentApiUrl = process.env.NEXT_PUBLIC_AGENT_API_URL || '';
 
@@ -17,8 +17,13 @@ export default function GeneralChatPage() {
   const [loading, setLoading] = useState(true);
   const [apiToken, setApiToken] = useState<string | null>(null);
 
-  // Fetch projects for context
+  // Fetch projects for context - wait for auth to be ready
   useEffect(() => {
+    if (!isReady) {
+      console.log('[Chat] Waiting for auth to be ready...');
+      return;
+    }
+    
     async function fetchProjects() {
       try {
         const response = await fetch(`${basePath}/api/projects`);
@@ -34,21 +39,21 @@ export default function GeneralChatPage() {
     }
 
     fetchProjects();
-  }, [basePath]);
+  }, [basePath, isReady, refreshKey]);
 
-  // Get API token for chat
+  // Get API token for chat - wait for auth to be ready
   useEffect(() => {
+    if (!isReady) return;
+    
     async function getToken() {
       try {
-        const response = await fetch(`${basePath}/api/auth/exchange`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ audience: 'agent-api' }),
-        });
+        const response = await fetch(`${basePath}/api/auth/token`);
 
         if (response.ok) {
           const data = await response.json();
           setApiToken(data.token);
+        } else {
+          console.error('Failed to get API token:', response.status);
         }
       } catch (err) {
         console.error('Failed to get API token:', err);
@@ -56,10 +61,11 @@ export default function GeneralChatPage() {
     }
 
     getToken();
-  }, [basePath]);
+  }, [basePath, isReady, refreshKey]);
 
   const handleBack = () => {
-    router.push(`${basePath}/`);
+    // Note: router.push automatically prepends basePath from next.config.ts
+    router.push('/');
   };
 
   // Build welcome message with project context
@@ -67,13 +73,15 @@ export default function GeneralChatPage() {
     if (projects.length === 0) {
       return `Hello! I'm your AI assistant for tracking project status.
 
-You can ask me questions like:
-- "What's the status of all projects?"
-- "Which projects are at risk?"
-- "What tasks are blocked?"
-- "Show me recent updates"
+**What I can do:**
+- Answer questions about your projects and tasks
+- **Paste meeting notes or transcripts** and I'll automatically create projects/tasks
+- Update existing projects and tasks based on your notes
+- Track progress and identify blockers
 
-You don't have any projects yet. Create one from the dashboard to get started!`;
+You don't have any projects yet. You can:
+- Create one from the dashboard
+- Or paste your meeting notes here and I'll help you get started!`;
     }
 
     const onTrack = projects.filter(p => p.status === 'on-track').length;
@@ -86,14 +94,13 @@ You don't have any projects yet. Create one from the dashboard to get started!`;
 - ${projects.length} total projects
 - ${onTrack} on track, ${atRisk} at risk, ${offTrack} off track
 
-You can ask me questions like:
-- "What's the status of [project name]?"
-- "Which projects need attention?"
-- "What tasks are due this week?"
-- "Show me recent updates across all projects"
-- "Summarize progress on AI initiatives"
+**What I can do:**
+- Answer questions: "What's the status of Project Alpha?"
+- **Paste meeting notes** and I'll create/update projects and tasks automatically
+- Find issues: "Which projects are at risk?" or "What tasks are blocked?"
+- Summarize: "Show me recent updates across all projects"
 
-How can I help you today?`;
+Try pasting your meeting notes, or ask me anything!`;
   };
 
   return (
@@ -133,7 +140,7 @@ How can I help you today?`;
               token={apiToken}
               agentUrl={agentApiUrl || undefined}
               agentId="status-assistant"
-              placeholder="Ask about your projects..."
+              placeholder="Ask a question or paste meeting notes..."
               welcomeMessage={buildWelcomeMessage()}
               enableWebSearch={false}
               enableDocSearch={true}

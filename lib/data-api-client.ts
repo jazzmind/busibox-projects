@@ -39,50 +39,65 @@ export const DOCUMENTS = {
 
 export const projectSchema: DataSchema = {
   fields: {
-    id: { type: 'string', required: true },
-    name: { type: 'string', required: true },
-    description: { type: 'string' },
-    status: { type: 'enum', values: ['on-track', 'at-risk', 'off-track', 'completed', 'paused'] },
-    progress: { type: 'integer', min: 0, max: 100 },
-    nextCheckpoint: { type: 'string' },
-    checkpointDate: { type: 'string' },
-    checkpointProgress: { type: 'integer', min: 0, max: 100 },
-    owner: { type: 'string' },
-    team: { type: 'array' },
-    tags: { type: 'array' },
-    createdAt: { type: 'string' },
-    updatedAt: { type: 'string' },
+    id: { type: 'string', required: true, hidden: true },
+    name: { type: 'string', required: true, label: 'Project Name', order: 1 },
+    description: { type: 'string', label: 'Description', multiline: true, order: 2 },
+    status: { type: 'enum', values: ['on-track', 'at-risk', 'off-track', 'completed', 'paused'], label: 'Status', order: 3 },
+    progress: { type: 'integer', min: 0, max: 100, label: 'Progress', widget: 'slider', order: 4 },
+    nextCheckpoint: { type: 'string', label: 'Next Checkpoint', order: 5 },
+    checkpointDate: { type: 'string', label: 'Checkpoint Date', widget: 'date', order: 6 },
+    checkpointProgress: { type: 'integer', min: 0, max: 100, label: 'Checkpoint Progress', widget: 'slider', order: 7 },
+    owner: { type: 'string', label: 'Owner', order: 8 },
+    team: { type: 'array', label: 'Team Members', widget: 'tags', readonly: true, order: 9 },
+    tags: { type: 'array', label: 'Tags', widget: 'tags', readonly: true, order: 10 },
+    createdAt: { type: 'string', label: 'Created', readonly: true, hidden: true },
+    updatedAt: { type: 'string', label: 'Updated', readonly: true, hidden: true },
   },
+  displayName: 'Projects',
+  itemLabel: 'Project',
+  sourceApp: 'status-report',
+  visibility: 'personal',
+  allowSharing: true,
 };
 
 export const taskSchema: DataSchema = {
   fields: {
-    id: { type: 'string', required: true },
-    projectId: { type: 'string', required: true },
-    title: { type: 'string', required: true },
-    description: { type: 'string' },
-    status: { type: 'enum', values: ['todo', 'in-progress', 'blocked', 'done'] },
-    assignee: { type: 'string' },
-    priority: { type: 'enum', values: ['low', 'medium', 'high', 'critical'] },
-    dueDate: { type: 'string' },
-    order: { type: 'integer' },
-    createdAt: { type: 'string' },
-    updatedAt: { type: 'string' },
+    id: { type: 'string', required: true, hidden: true },
+    projectId: { type: 'string', required: true, hidden: true },
+    title: { type: 'string', required: true, label: 'Task Title', order: 1 },
+    description: { type: 'string', label: 'Description', multiline: true, order: 2 },
+    status: { type: 'enum', values: ['todo', 'in-progress', 'blocked', 'done'], label: 'Status', order: 3 },
+    assignee: { type: 'string', label: 'Assignee', order: 4 },
+    priority: { type: 'enum', values: ['low', 'medium', 'high', 'critical'], label: 'Priority', order: 5 },
+    dueDate: { type: 'string', label: 'Due Date', widget: 'date', order: 6 },
+    order: { type: 'integer', label: 'Order', hidden: true },
+    createdAt: { type: 'string', label: 'Created', readonly: true, hidden: true },
+    updatedAt: { type: 'string', label: 'Updated', readonly: true, hidden: true },
   },
+  displayName: 'Tasks',
+  itemLabel: 'Task',
+  sourceApp: 'status-report',
+  visibility: 'personal',
+  allowSharing: true,
 };
 
 export const updateSchema: DataSchema = {
   fields: {
-    id: { type: 'string', required: true },
-    projectId: { type: 'string', required: true },
-    content: { type: 'string', required: true },
-    author: { type: 'string' },
-    tasksCompleted: { type: 'array' },
-    tasksAdded: { type: 'array' },
-    previousStatus: { type: 'string' },
-    newStatus: { type: 'string' },
-    createdAt: { type: 'string' },
+    id: { type: 'string', required: true, hidden: true },
+    projectId: { type: 'string', required: true, hidden: true },
+    content: { type: 'string', required: true, label: 'Update Content', multiline: true, order: 1 },
+    author: { type: 'string', label: 'Author', order: 2 },
+    tasksCompleted: { type: 'array', label: 'Tasks Completed', readonly: true, order: 3 },
+    tasksAdded: { type: 'array', label: 'Tasks Added', readonly: true, order: 4 },
+    previousStatus: { type: 'string', label: 'Previous Status', readonly: true, order: 5 },
+    newStatus: { type: 'string', label: 'New Status', readonly: true, order: 6 },
+    createdAt: { type: 'string', label: 'Created', readonly: true, hidden: true },
   },
+  displayName: 'Status Updates',
+  itemLabel: 'Update',
+  sourceApp: 'status-report',
+  visibility: 'personal',
+  allowSharing: true,
 };
 
 // ==========================================================================
@@ -143,6 +158,9 @@ export async function createDataDocument(
   schema: DataSchema,
   visibility: 'personal' | 'shared' = 'shared'
 ): Promise<DataDocument> {
+  // Extract sourceApp from schema for API request
+  const sourceApp = schema.sourceApp;
+  
   return dataApiRequest<DataDocument>(token, '/data', {
     method: 'POST',
     body: JSON.stringify({
@@ -150,6 +168,7 @@ export async function createDataDocument(
       schema,
       visibility,
       enableCache: false,
+      sourceApp, // Pass sourceApp to data-api for app data library support
     }),
   });
 }

@@ -23,17 +23,20 @@ function AppShellContent({ children, basePath }: { children: React.ReactNode; ba
   const navItems = [
     { href: '/', label: 'Dashboard' },
     { href: '/chat', label: 'Chat' },
+    { href: '/admin', label: 'Admin' },
   ];
 
   // URLs to skip auth handling for
   const skipAuthUrls = useMemo(() => [
     `${basePath}/api/auth/refresh`,
     `${basePath}/api/auth/exchange`,
+    `${basePath}/api/auth/token`,
     `${basePath}/api/session`,
     `${basePath}/api/logout`,
     `${basePath}/api/health`,
     '/api/auth/refresh',
     '/api/auth/exchange',
+    '/api/auth/token',
     '/api/session',
     '/api/logout',
     '/api/health',

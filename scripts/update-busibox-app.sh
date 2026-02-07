@@ -31,9 +31,9 @@ else
 fi
 
 # Export token
-export GITHUB_TOKEN=$(gh auth token)
+export GITHUB_AUTH_TOKEN=$(gh auth token)
 
-if [ -z "$GITHUB_TOKEN" ]; then
+if [ -z "$GITHUB_AUTH_TOKEN" ]; then
     echo "❌ Failed to get GitHub token"
     exit 1
 fi

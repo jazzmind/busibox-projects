@@ -11,9 +11,11 @@ import {
   AlertTriangle,
   XCircle,
   CheckCircle2,
+  X,
 } from 'lucide-react';
 import { ProjectCard, ProjectCardSkeleton } from '@/components/projects';
-import type { Project, Task, StatusUpdate } from '@/lib/types';
+import { useAuth } from '@jazzmind/busibox-app';
+import type { Project, Task, StatusUpdate, CreateProjectInput, ProjectStatus } from '@/lib/types';
 
 interface ProjectWithDetails extends Project {
   tasks: Task[];
@@ -33,12 +35,22 @@ interface DashboardData {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { isReady, refreshKey } = useAuth();
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
   
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
+  
+  // New Project Modal state
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [newProject, setNewProject] = useState<CreateProjectInput>({
+    name: '',
+    description: '',
+    status: 'on-track' as ProjectStatus,
+  });
 
   const fetchDashboard = async () => {
     try {
@@ -81,21 +93,58 @@ export default function DashboardPage() {
     }
   };
 
+  // Wait for auth to be ready before fetching data
+  // Also refetch when refreshKey changes (after token refresh)
   useEffect(() => {
+    if (!isReady) {
+      console.log('[Dashboard] Waiting for auth to be ready...');
+      return;
+    }
+    console.log('[Dashboard] Auth ready, fetching dashboard...');
     fetchDashboard();
-  }, []);
+  }, [isReady, refreshKey]);
 
   const handleUpdateClick = (projectId: string) => {
-    router.push(`${basePath}/projects/${projectId}/update`);
+    // Note: router.push automatically prepends basePath from next.config.ts
+    router.push(`/projects/${projectId}/update`);
   };
 
   const handleNewProject = () => {
-    // TODO: Open new project modal/page
-    console.log('New project');
+    setNewProject({ name: '', description: '', status: 'on-track' });
+    setShowNewProjectModal(true);
+  };
+
+  const handleCreateProject = async () => {
+    if (!newProject.name.trim()) return;
+    
+    try {
+      setIsCreating(true);
+      const response = await fetch(`${basePath}/api/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProject),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to create project');
+      }
+      
+      const createdProject = await response.json();
+      setShowNewProjectModal(false);
+      
+      // Navigate to the new project (router.push auto-prepends basePath)
+      router.push(`/projects/${createdProject.id}`);
+    } catch (err) {
+      console.error('Failed to create project:', err);
+      setError('Failed to create project');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleOpenChat = () => {
-    router.push(`${basePath}/chat`);
+    // Note: router.push automatically prepends basePath from next.config.ts
+    router.push('/chat');
   };
 
   // Stats cards config
@@ -115,10 +164,10 @@ export default function DashboardPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                AI Initiative Status
+                Initiative Status
               </h1>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Track progress across all your AI projects
+                Track progress across all your projects
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -240,6 +289,119 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* New Project Modal */}
+      {showNewProjectModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex min-h-screen items-center justify-center p-4">
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-black/50 transition-opacity"
+              onClick={() => setShowNewProjectModal(false)}
+            />
+
+            {/* Modal */}
+            <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  New Project
+                </h2>
+                <button
+                  onClick={() => setShowNewProjectModal(false)}
+                  className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Form */}
+              <div className="space-y-4">
+                <div>
+                  <label
+                    htmlFor="project-name"
+                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                  >
+                    Project Name *
+                  </label>
+                  <input
+                    id="project-name"
+                    type="text"
+                    value={newProject.name}
+                    onChange={(e) =>
+                      setNewProject({ ...newProject, name: e.target.value })
+                    }
+                    placeholder="e.g., AI Customer Service Bot"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="project-description"
+                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                  >
+                    Description
+                  </label>
+                  <textarea
+                    id="project-description"
+                    value={newProject.description || ''}
+                    onChange={(e) =>
+                      setNewProject({ ...newProject, description: e.target.value })
+                    }
+                    placeholder="Brief description of the project..."
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="project-status"
+                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                  >
+                    Initial Status
+                  </label>
+                  <select
+                    id="project-status"
+                    value={newProject.status}
+                    onChange={(e) =>
+                      setNewProject({
+                        ...newProject,
+                        status: e.target.value as ProjectStatus,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="on-track">On Track</option>
+                    <option value="at-risk">At Risk</option>
+                    <option value="off-track">Off Track</option>
+                    <option value="paused">Paused</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setShowNewProjectModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateProject}
+                  disabled={!newProject.name.trim() || isCreating}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isCreating ? 'Creating...' : 'Create Project'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

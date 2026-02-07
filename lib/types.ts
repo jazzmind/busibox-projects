@@ -185,14 +185,28 @@ export interface DataSchema {
   fields: Record<string, FieldDefinition>;
   indexes?: string[];
   embedFields?: string[];
+  // Display metadata for app data libraries
+  displayName?: string; // Human-readable name for the document type (e.g., "Projects")
+  itemLabel?: string; // Singular item name (e.g., "Project")
+  sourceApp?: string; // App identifier (e.g., "status-report")
+  visibility?: "personal" | "shared"; // Default visibility for new items
+  allowSharing?: boolean; // Whether items can be shared
 }
 
 export interface FieldDefinition {
-  type: "string" | "integer" | "number" | "boolean" | "array" | "object" | "enum";
+  type: "string" | "integer" | "number" | "boolean" | "array" | "object" | "enum" | "datetime";
   required?: boolean;
   values?: string[]; // For enum types
   min?: number;
   max?: number;
+  // Display hints for form rendering
+  label?: string; // Human-readable field name
+  hidden?: boolean; // Don't show in list/form (e.g., id)
+  multiline?: boolean; // Use textarea for strings
+  widget?: "text" | "textarea" | "select" | "slider" | "number" | "date" | "checkbox" | "tags"; // Override default widget
+  readonly?: boolean; // Cannot edit in form (complex types)
+  order?: number; // Display order in form
+  placeholder?: string; // Placeholder text for input
 }
 
 export interface QueryFilter {

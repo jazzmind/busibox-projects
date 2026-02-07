@@ -24,6 +24,7 @@ import {
   CheckpointProgress,
   StatusTimeline,
 } from '@/components/projects';
+import { useAuth } from '@jazzmind/busibox-app';
 import type { Project, Task, StatusUpdate, TaskStatus } from '@/lib/types';
 
 interface ProjectDetailData {
@@ -39,6 +40,7 @@ interface PageProps {
 export default function ProjectDetailPage({ params }: PageProps) {
   const { id } = use(params);
   const router = useRouter();
+  const { isReady, refreshKey } = useAuth();
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
   const [data, setData] = useState<ProjectDetailData | null>(null);
@@ -71,12 +73,19 @@ export default function ProjectDetailPage({ params }: PageProps) {
     }
   };
 
+  // Wait for auth to be ready before fetching data
   useEffect(() => {
+    if (!isReady) {
+      console.log('[ProjectDetail] Waiting for auth to be ready...');
+      return;
+    }
+    console.log('[ProjectDetail] Auth ready, fetching project...');
     fetchProject();
-  }, [id]);
+  }, [id, isReady, refreshKey]);
 
   const handleUpdateStatus = () => {
-    router.push(`${basePath}/projects/${id}/update`);
+    // Note: router.push automatically prepends basePath from next.config.ts
+    router.push(`/projects/${id}/update`);
   };
 
   const handleTaskStatusChange = async (taskId: string, newStatus: TaskStatus) => {

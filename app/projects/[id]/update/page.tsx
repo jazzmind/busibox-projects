@@ -21,7 +21,7 @@ interface PageProps {
 export default function StatusUpdatePage({ params }: PageProps) {
   const { id } = use(params);
   const router = useRouter();
-  const { authState } = useAuth();
+  const { isReady, refreshKey, authState } = useAuth();
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
   const agentApiUrl = process.env.NEXT_PUBLIC_AGENT_API_URL || '';
 
@@ -30,8 +30,13 @@ export default function StatusUpdatePage({ params }: PageProps) {
   const [error, setError] = useState<string | null>(null);
   const [apiToken, setApiToken] = useState<string | null>(null);
 
-  // Fetch project data
+  // Fetch project data - wait for auth to be ready
   useEffect(() => {
+    if (!isReady) {
+      console.log('[StatusUpdate] Waiting for auth to be ready...');
+      return;
+    }
+    
     async function fetchProject() {
       try {
         setLoading(true);
@@ -56,21 +61,21 @@ export default function StatusUpdatePage({ params }: PageProps) {
     }
 
     fetchProject();
-  }, [id, basePath]);
+  }, [id, basePath, isReady, refreshKey]);
 
-  // Get API token for chat
+  // Get API token for chat - wait for auth to be ready
   useEffect(() => {
+    if (!isReady) return;
+    
     async function getToken() {
       try {
-        const response = await fetch(`${basePath}/api/auth/exchange`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ audience: 'agent-api' }),
-        });
+        const response = await fetch(`${basePath}/api/auth/token`);
 
         if (response.ok) {
           const data = await response.json();
           setApiToken(data.token);
+        } else {
+          console.error('Failed to get API token:', response.status);
         }
       } catch (err) {
         console.error('Failed to get API token:', err);
@@ -78,10 +83,11 @@ export default function StatusUpdatePage({ params }: PageProps) {
     }
 
     getToken();
-  }, [basePath]);
+  }, [basePath, isReady, refreshKey]);
 
   const handleBack = () => {
-    router.push(`${basePath}/projects/${id}`);
+    // Note: router.push automatically prepends basePath from next.config.ts
+    router.push(`/projects/${id}`);
   };
 
   // Build welcome message with context
