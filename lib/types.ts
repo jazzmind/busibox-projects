@@ -181,6 +181,30 @@ export interface DataDocument {
   updatedAt: string;
 }
 
+/**
+ * Relation types for linking data documents.
+ * - 'hasMany': This document's records have children in another document
+ * - 'belongsTo': This document's records belong to a parent in another document
+ */
+export type DataRelationType = "hasMany" | "belongsTo";
+
+/**
+ * Defines a relationship between data documents.
+ * Compatible with AppDataRelation from @jazzmind/busibox-app.
+ */
+export interface DataRelation {
+  /** The type of relationship */
+  type: DataRelationType;
+  /** Target document name (e.g., 'status-report-tasks') */
+  document: string;
+  /** Field name linking records (e.g., 'projectId') */
+  foreignKey: string;
+  /** Field to display in links (e.g., 'title' or 'name') */
+  displayField?: string;
+  /** UI label for the relation (e.g., 'Tasks', 'Project') */
+  label?: string;
+}
+
 export interface DataSchema {
   fields: Record<string, FieldDefinition>;
   indexes?: string[];
@@ -191,6 +215,8 @@ export interface DataSchema {
   sourceApp?: string; // App identifier (e.g., "status-report")
   visibility?: "personal" | "shared"; // Default visibility for new items
   allowSharing?: boolean; // Whether items can be shared
+  // Relationships to other data documents
+  relations?: Record<string, DataRelation>;
 }
 
 export interface FieldDefinition {

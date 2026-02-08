@@ -58,6 +58,22 @@ export const projectSchema: DataSchema = {
   sourceApp: 'status-report',
   visibility: 'personal',
   allowSharing: true,
+  relations: {
+    tasks: {
+      type: 'hasMany',
+      document: DOCUMENTS.TASKS,
+      foreignKey: 'projectId',
+      displayField: 'title',
+      label: 'Tasks',
+    },
+    updates: {
+      type: 'hasMany',
+      document: DOCUMENTS.UPDATES,
+      foreignKey: 'projectId',
+      displayField: 'content',
+      label: 'Status Updates',
+    },
+  },
 };
 
 export const taskSchema: DataSchema = {
@@ -79,6 +95,15 @@ export const taskSchema: DataSchema = {
   sourceApp: 'status-report',
   visibility: 'personal',
   allowSharing: true,
+  relations: {
+    project: {
+      type: 'belongsTo',
+      document: DOCUMENTS.PROJECTS,
+      foreignKey: 'projectId',
+      displayField: 'name',
+      label: 'Project',
+    },
+  },
 };
 
 export const updateSchema: DataSchema = {
@@ -98,6 +123,15 @@ export const updateSchema: DataSchema = {
   sourceApp: 'status-report',
   visibility: 'personal',
   allowSharing: true,
+  relations: {
+    project: {
+      type: 'belongsTo',
+      document: DOCUMENTS.PROJECTS,
+      foreignKey: 'projectId',
+      displayField: 'name',
+      label: 'Project',
+    },
+  },
 };
 
 // ==========================================================================
@@ -184,6 +218,72 @@ export async function getDocumentByName(
   return dataApiRequest<DataDocument>(token, `/data/${doc.id}`);
 }
 
+/**
+ * Get full document details including metadata
+ */
+export async function getDocumentDetails(
+  token: string,
+  documentId: string
+): Promise<DataDocument & { sourceApp?: string; metadata?: Record<string, unknown> }> {
+  return dataApiRequest<DataDocument & { sourceApp?: string; metadata?: Record<string, unknown> }>(
+    token,
+    `/data/${documentId}?includeRecords=false`
+  );
+}
+
+/**
+ * Update a document's metadata (used to add sourceApp to existing docs)
+ */
+export async function updateDocumentMetadata(
+  token: string,
+  documentId: string,
+  metadata: Record<string, unknown>,
+  schema?: DataSchema
+): Promise<void> {
+  await dataApiRequest<unknown>(token, `/data/${documentId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      metadata,
+      schema, // Also update schema to include display hints
+    }),
+  });
+}
+
+/**
+ * Ensure document has sourceApp in metadata, patching if necessary
+ */
+async function ensureSourceApp(
+  token: string,
+  documentId: string,
+  schema: DataSchema
+): Promise<void> {
+  try {
+    const doc = await getDocumentDetails(token, documentId);
+    
+    // Check if sourceApp is missing from the document
+    if (!doc.sourceApp) {
+      console.log(`[status-report] Patching document ${documentId} with sourceApp metadata`);
+      
+      // Merge new sourceApp with existing metadata to avoid losing data
+      const existingMetadata = doc.metadata || {};
+      const mergedMetadata = {
+        ...existingMetadata,
+        sourceApp: 'status-report',
+      };
+      
+      await updateDocumentMetadata(
+        token,
+        documentId,
+        mergedMetadata,
+        schema // Also update schema to ensure it has display hints
+      );
+    }
+  } catch (error) {
+    console.warn(`[status-report] Failed to ensure sourceApp for document ${documentId}:`, error);
+    // Don't throw - this is a non-critical enhancement
+  }
+}
+
 export async function ensureDataDocuments(token: string): Promise<{
   projects: string;
   tasks: string;
@@ -198,16 +298,25 @@ export async function ensureDataDocuments(token: string): Promise<{
   if (!projectsDoc) {
     const created = await createDataDocument(token, DOCUMENTS.PROJECTS, projectSchema, 'personal');
     projectsDoc = { id: created.id, name: created.name, recordCount: 0 };
+  } else {
+    // Ensure existing document has sourceApp
+    await ensureSourceApp(token, projectsDoc.id, projectSchema);
   }
 
   if (!tasksDoc) {
     const created = await createDataDocument(token, DOCUMENTS.TASKS, taskSchema, 'personal');
     tasksDoc = { id: created.id, name: created.name, recordCount: 0 };
+  } else {
+    // Ensure existing document has sourceApp
+    await ensureSourceApp(token, tasksDoc.id, taskSchema);
   }
 
   if (!updatesDoc) {
     const created = await createDataDocument(token, DOCUMENTS.UPDATES, updateSchema, 'personal');
     updatesDoc = { id: created.id, name: created.name, recordCount: 0 };
+  } else {
+    // Ensure existing document has sourceApp
+    await ensureSourceApp(token, updatesDoc.id, updateSchema);
   }
 
   return {

@@ -147,6 +147,33 @@ export default function DashboardPage() {
     router.push('/chat');
   };
 
+  const handleDeleteProject = async (projectId: string) => {
+    try {
+      const response = await fetch(`${basePath}/api/projects/${projectId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete project');
+      }
+
+      // Remove from local state
+      if (data) {
+        setData({
+          ...data,
+          projects: data.projects.filter(p => p.id !== projectId),
+          stats: {
+            ...data.stats,
+            totalProjects: data.stats.totalProjects - 1,
+          },
+        });
+      }
+    } catch (err) {
+      console.error('Failed to delete project:', err);
+      setError('Failed to delete project');
+    }
+  };
+
   // Stats cards config
   const statsCards = data ? [
     { label: 'Total Projects', value: data.stats.totalProjects, icon: BarChart3, color: 'text-gray-600 dark:text-gray-400' },
@@ -284,6 +311,7 @@ export default function DashboardPage() {
                 tasks={project.tasks}
                 recentUpdate={project.recentUpdates[0] || null}
                 onUpdateClick={handleUpdateClick}
+                onDelete={handleDeleteProject}
               />
             ))}
           </div>

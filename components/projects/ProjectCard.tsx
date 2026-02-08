@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { cn } from '@jazzmind/busibox-app/lib/utils';
 import {
@@ -8,6 +9,8 @@ import {
   ExternalLink,
   Users,
   Tag,
+  Trash2,
+  Edit,
 } from 'lucide-react';
 import { CheckpointProgress } from './ProgressBar';
 import { ProjectStatusBadge } from './StatusBadge';
@@ -21,6 +24,8 @@ interface ProjectCardProps {
   recentUpdate?: StatusUpdate | null;
   /** Callback when update status is clicked */
   onUpdateClick?: (projectId: string) => void;
+  /** Callback when project is deleted */
+  onDelete?: (projectId: string) => void;
   /** Additional CSS classes */
   className?: string;
 }
@@ -30,10 +35,30 @@ export function ProjectCard({
   tasks = [],
   recentUpdate,
   onUpdateClick,
+  onDelete,
   className,
 }: ProjectCardProps) {
   // Note: Next.js Link component automatically handles basePath from next.config.ts
   // Don't manually prefix with basePath
+  const [showMenu, setShowMenu] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!onDelete) return;
+    
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${project.name}"? This action cannot be undone.`
+    );
+    
+    if (!confirmed) {
+      setShowMenu(false);
+      return;
+    }
+
+    setIsDeleting(true);
+    setShowMenu(false);
+    onDelete(project.id);
+  };
 
   return (
     <div
@@ -125,17 +150,51 @@ export function ProjectCard({
         <div className="flex items-center justify-between">
           <button
             onClick={() => onUpdateClick?.(project.id)}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 rounded-lg transition-colors"
+            disabled={isDeleting}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50"
           >
             <MessageSquarePlus className="w-4 h-4" />
-            Update Status
+            {isDeleting ? 'Deleting...' : 'Update Status'}
           </button>
-          <button
-            className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            title="More options"
-          >
-            <MoreHorizontal className="w-5 h-5" />
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              title="More options"
+            >
+              <MoreHorizontal className="w-5 h-5" />
+            </button>
+            
+            {/* Dropdown Menu */}
+            {showMenu && (
+              <>
+                {/* Backdrop */}
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setShowMenu(false)}
+                />
+                <div className="absolute right-0 bottom-full mb-1 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
+                  <Link
+                    href={`/projects/${project.id}`}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => setShowMenu(false)}
+                  >
+                    <Edit className="w-4 h-4" />
+                    Edit Project
+                  </Link>
+                  {onDelete && (
+                    <button
+                      onClick={handleDelete}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete Project
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

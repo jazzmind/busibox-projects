@@ -15,6 +15,7 @@ import {
   Clock,
   AlertCircle,
   MoreVertical,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@jazzmind/busibox-app/lib/utils';
 import {
@@ -175,6 +176,75 @@ export default function ProjectDetailPage({ params }: PageProps) {
     return order[(currentIndex + 1) % order.length];
   };
 
+  const [taskMenuOpen, setTaskMenuOpen] = useState<string | null>(null);
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+
+  const handleDeleteTask = async (taskId: string, taskTitle: string) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${taskTitle}"? This action cannot be undone.`
+    );
+
+    if (!confirmed) {
+      setTaskMenuOpen(null);
+      return;
+    }
+
+    try {
+      setDeletingTaskId(taskId);
+      setTaskMenuOpen(null);
+
+      const response = await fetch(`${basePath}/api/tasks/${taskId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete task');
+      }
+
+      // Remove from local state
+      if (data) {
+        setData({
+          ...data,
+          tasks: data.tasks.filter((t) => t.id !== taskId),
+        });
+      }
+    } catch (err) {
+      console.error('Failed to delete task:', err);
+    } finally {
+      setDeletingTaskId(null);
+    }
+  };
+
+  const [isDeletingProject, setIsDeletingProject] = useState(false);
+
+  const handleDeleteProject = async () => {
+    if (!data) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${data.project.name}"? This will also delete all tasks and updates. This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setIsDeletingProject(true);
+
+      const response = await fetch(`${basePath}/api/projects/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete project');
+      }
+
+      // Navigate back to dashboard
+      router.push('/');
+    } catch (err) {
+      console.error('Failed to delete project:', err);
+      setIsDeletingProject(false);
+    }
+  };
+
   const statusIcons: Record<TaskStatus, typeof Circle> = {
     'todo': Circle,
     'in-progress': Clock,
@@ -263,15 +333,32 @@ export default function ProjectDetailPage({ params }: PageProps) {
               <button
                 onClick={() => fetchProject()}
                 className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                title="Refresh"
               >
                 <RefreshCw className="w-5 h-5" />
               </button>
-              <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+              <button 
+                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                title="Edit project"
+              >
                 <Edit className="w-5 h-5" />
               </button>
               <button
+                onClick={handleDeleteProject}
+                disabled={isDeletingProject}
+                className="p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                title="Delete project"
+              >
+                {isDeletingProject ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-5 h-5" />
+                )}
+              </button>
+              <button
                 onClick={handleUpdateStatus}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                disabled={isDeletingProject}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50"
               >
                 <MessageSquarePlus className="w-4 h-4" />
                 Update Status
@@ -318,18 +405,22 @@ export default function ProjectDetailPage({ params }: PageProps) {
               ) : (
                 incompleteTasks.map((task) => {
                   const StatusIcon = statusIcons[task.status];
+                  const isDeleting = deletingTaskId === task.id;
                   return (
                     <div
                       key={task.id}
-                      className="flex items-start gap-3 p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                      className={cn(
+                        "flex items-start gap-3 p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50",
+                        isDeleting && "opacity-50 pointer-events-none"
+                      )}
                     >
                       <button
                         onClick={() => handleTaskStatusChange(task.id, cycleStatus(task.status))}
-                        disabled={updatingTaskId === task.id}
+                        disabled={updatingTaskId === task.id || isDeleting}
                         className={cn(
                           'flex-shrink-0 mt-0.5 transition-colors',
                           statusIconColors[task.status],
-                          updatingTaskId === task.id && 'opacity-50'
+                          (updatingTaskId === task.id || isDeleting) && 'opacity-50'
                         )}
                       >
                         <StatusIcon className="w-5 h-5" />
@@ -339,9 +430,31 @@ export default function ProjectDetailPage({ params }: PageProps) {
                           <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                             {task.title}
                           </p>
-                          <button className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded">
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
+                          <div className="relative flex-shrink-0">
+                            <button 
+                              onClick={() => setTaskMenuOpen(taskMenuOpen === task.id ? null : task.id)}
+                              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                            {taskMenuOpen === task.id && (
+                              <>
+                                <div
+                                  className="fixed inset-0 z-10"
+                                  onClick={() => setTaskMenuOpen(null)}
+                                />
+                                <div className="absolute right-0 top-full mt-1 w-36 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
+                                  <button
+                                    onClick={() => handleDeleteTask(task.id, task.title)}
+                                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                    Delete Task
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center gap-3 mt-1">
                           <TaskStatusBadge status={task.status} />
@@ -370,10 +483,21 @@ export default function ProjectDetailPage({ params }: PageProps) {
                       {completedTasks.map((task) => (
                         <div
                           key={task.id}
-                          className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400"
+                          className={cn(
+                            "flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400 group/task",
+                            deletingTaskId === task.id && "opacity-50"
+                          )}
                         >
-                          <CheckCircle className="w-4 h-4 text-green-500" />
-                          <span className="line-through">{task.title}</span>
+                          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                          <span className="line-through flex-1">{task.title}</span>
+                          <button
+                            onClick={() => handleDeleteTask(task.id, task.title)}
+                            disabled={deletingTaskId === task.id}
+                            className="opacity-0 group-hover/task:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity"
+                            title="Delete task"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       ))}
                     </div>
