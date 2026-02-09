@@ -250,9 +250,9 @@ export async function updateDocumentMetadata(
 }
 
 /**
- * Ensure document has sourceApp in metadata, patching if necessary
+ * Ensure document has sourceApp in metadata and up-to-date schema (including relations)
  */
-async function ensureSourceApp(
+async function ensureSchemaAndMetadata(
   token: string,
   documentId: string,
   schema: DataSchema
@@ -260,9 +260,29 @@ async function ensureSourceApp(
   try {
     const doc = await getDocumentDetails(token, documentId);
     
-    // Check if sourceApp is missing from the document
-    if (!doc.sourceApp) {
-      console.log(`[status-report] Patching document ${documentId} with sourceApp metadata`);
+    // Check if sourceApp is missing or schema needs updating
+    // The schema is returned at the top level of the document, not in metadata
+    const existingSchema = doc.schema;
+    const needsSourceApp = !doc.sourceApp;
+    
+    // Check if relations need updating - compare relation names
+    const existingRelationNames = Object.keys(existingSchema?.relations || {});
+    const newRelationNames = Object.keys(schema.relations || {});
+    const needsSchemaUpdate = 
+      // No relations yet but schema has relations
+      (existingRelationNames.length === 0 && newRelationNames.length > 0) ||
+      // Different number of relations
+      (existingRelationNames.length !== newRelationNames.length) ||
+      // Different relation names
+      !newRelationNames.every(name => existingRelationNames.includes(name));
+    
+    if (needsSourceApp || needsSchemaUpdate) {
+      console.log(`[status-report] Patching document ${documentId}`, {
+        needsSourceApp,
+        needsSchemaUpdate,
+        existingRelations: existingRelationNames,
+        newRelations: newRelationNames,
+      });
       
       // Merge new sourceApp with existing metadata to avoid losing data
       const existingMetadata = doc.metadata || {};
@@ -275,11 +295,11 @@ async function ensureSourceApp(
         token,
         documentId,
         mergedMetadata,
-        schema // Also update schema to ensure it has display hints
+        schema // Always update schema to ensure it has relations
       );
     }
   } catch (error) {
-    console.warn(`[status-report] Failed to ensure sourceApp for document ${documentId}:`, error);
+    console.warn(`[status-report] Failed to ensure schema for document ${documentId}:`, error);
     // Don't throw - this is a non-critical enhancement
   }
 }
@@ -299,24 +319,24 @@ export async function ensureDataDocuments(token: string): Promise<{
     const created = await createDataDocument(token, DOCUMENTS.PROJECTS, projectSchema, 'personal');
     projectsDoc = { id: created.id, name: created.name, recordCount: 0 };
   } else {
-    // Ensure existing document has sourceApp
-    await ensureSourceApp(token, projectsDoc.id, projectSchema);
+    // Ensure existing document has sourceApp and up-to-date schema with relations
+    await ensureSchemaAndMetadata(token, projectsDoc.id, projectSchema);
   }
 
   if (!tasksDoc) {
     const created = await createDataDocument(token, DOCUMENTS.TASKS, taskSchema, 'personal');
     tasksDoc = { id: created.id, name: created.name, recordCount: 0 };
   } else {
-    // Ensure existing document has sourceApp
-    await ensureSourceApp(token, tasksDoc.id, taskSchema);
+    // Ensure existing document has sourceApp and up-to-date schema with relations
+    await ensureSchemaAndMetadata(token, tasksDoc.id, taskSchema);
   }
 
   if (!updatesDoc) {
     const created = await createDataDocument(token, DOCUMENTS.UPDATES, updateSchema, 'personal');
     updatesDoc = { id: created.id, name: created.name, recordCount: 0 };
   } else {
-    // Ensure existing document has sourceApp
-    await ensureSourceApp(token, updatesDoc.id, updateSchema);
+    // Ensure existing document has sourceApp and up-to-date schema with relations
+    await ensureSchemaAndMetadata(token, updatesDoc.id, updateSchema);
   }
 
   return {

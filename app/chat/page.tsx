@@ -11,7 +11,11 @@ export default function GeneralChatPage() {
   const router = useRouter();
   const { isReady, refreshKey, authState } = useAuth();
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-  const agentApiUrl = process.env.NEXT_PUBLIC_AGENT_API_URL || '';
+  
+  // Use proxy URL for agent API calls (handles auth server-side)
+  // This avoids CORS issues and keeps internal IPs unexposed
+  // Note: Don't include basePath - Next.js handles it automatically for API routes
+  const agentApiUrl = '/api/agent';
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,8 +141,8 @@ Try pasting your meeting notes, or ask me anything!`;
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 h-[calc(100vh-180px)] overflow-hidden">
           {apiToken ? (
             <SimpleChatInterface
-              token={apiToken}
-              agentUrl={agentApiUrl || undefined}
+              token={apiToken || ''} // Token passed for compatibility, but proxy uses cookie auth
+              agentUrl={agentApiUrl}
               agentId="status-assistant"
               placeholder="Ask a question or paste meeting notes..."
               welcomeMessage={buildWelcomeMessage()}

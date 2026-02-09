@@ -88,6 +88,20 @@ export async function getApiToken(
 }
 
 /**
+ * Get an authz token for agent-api calls (Zero Trust)
+ *
+ * @param sessionJwt - The session JWT from busibox-session cookie
+ * @returns Bearer token string for Authorization header
+ */
+export async function getAgentApiToken(sessionJwt: string): Promise<string> {
+  const result = await exchangeForAuthzToken(sessionJwt, "agent-api", [
+    "agents:read",
+    "agents:write",
+  ]);
+  return result.accessToken;
+}
+
+/**
  * Get an authz token for test user (local development only)
  *
  * In Zero Trust mode, this still requires a valid session JWT.
