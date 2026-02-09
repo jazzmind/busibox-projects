@@ -152,6 +152,9 @@ Try pasting your meeting notes, or ask me anything!`;
               model="chat"
               useStreaming={true}
               useAgenticStreaming={true}
+              metadata={{
+                appName: 'status-report',
+              }}
               onMessageSent={(message) => {
                 console.log('Message sent:', message);
               }}

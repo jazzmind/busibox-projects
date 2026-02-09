@@ -201,6 +201,11 @@ What have you been working on?`;
               model="chat"
               useStreaming={true}
               useAgenticStreaming={true}
+              metadata={{
+                projectId: id,
+                projectName: project.name,
+                appName: 'status-report',
+              }}
               onMessageSent={(message) => {
                 console.log('Message sent:', message);
               }}
