@@ -201,17 +201,13 @@ What have you been working on?`;
               model="chat"
               useStreaming={true}
               useAgenticStreaming={true}
-              metadata={{
-                projectId: id,
-                projectName: project.name,
-                appName: 'status-report',
-              }}
               onMessageSent={(message) => {
                 console.log('Message sent:', message);
               }}
               onResponseReceived={(response) => {
                 console.log('Response received:', response.substring(0, 100));
               }}
+              {...{ metadata: { projectId: id, projectName: project.name, appName: 'status-report' } } as any}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
