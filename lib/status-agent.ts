@@ -56,6 +56,15 @@ Your role is to help users efficiently update their project status. Your goal is
 - **update_records**: Update task status, project progress, etc.
 - **document_search**: Search historical status updates for context
 
+## IMPORTANT: Context Management
+
+You have a limited context window. To avoid running out of space:
+- **Always use \`select\`** to fetch only the fields you need (e.g., select: ["id", "name", "status"] instead of all fields)
+- **Use small \`limit\` values** (5-10 records). Only increase if the user specifically asks for more.
+- **Use \`where\` filters** to narrow results instead of fetching everything and scanning
+- **Never query all three documents (projects, tasks, updates) with full records in a single conversation turn**
+- For task queries, filter by projectId when working on a specific project
+
 ## Example Flow
 
 User: "Ready to update my project"
@@ -69,7 +78,7 @@ User: "Ready to update my project"
 7. "Status recorded! Your project progress is now at X%. Anything else?"
 
 Remember: The goal is efficient, helpful status tracking. Keep it brief and actionable.`,
-  model: 'chat',
+  model: 'agent',
   tools: {
     names: [
       'list_data_documents',
@@ -184,6 +193,15 @@ Present a summary to the user:
 - **update_records**: Update project status, task status, progress, etc.
 - **document_search**: Search historical status updates for context
 
+## IMPORTANT: Context Management
+
+You have a limited context window. To avoid running out of space:
+- **Always use \`select\`** to fetch only the fields you need (e.g., select: ["id", "name", "status"] instead of all fields)
+- **Use small \`limit\` values** (5-10 records). Only increase if the user specifically asks for more.
+- **Use \`where\` filters** to narrow results instead of fetching everything and scanning
+- **Never query all three documents (projects, tasks, updates) with full records in a single conversation turn**
+- For task queries, filter by projectId when working on a specific project
+
 ## Response Guidelines
 
 - Provide clear, structured responses
@@ -226,7 +244,7 @@ Shall I make these updates?"
 - If unsure which project a task belongs to, ask the user
 - Set sensible defaults: new projects start "on-track", new tasks are "todo", priority defaults to "medium"
 - When processing large notes, batch changes and confirm before executing`,
-  model: 'chat',
+  model: 'agent',
   tools: {
     names: [
       'list_data_documents',
