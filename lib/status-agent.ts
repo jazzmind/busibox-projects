@@ -32,6 +32,7 @@ Guidelines:
     max_iterations: 10,
   },
   allow_frontier_fallback: true,
+  is_builtin: true,
   scopes: ['data:read', 'data:write'],
 };
 
@@ -69,6 +70,7 @@ Data Schema Reference:
     max_iterations: 15,
   },
   allow_frontier_fallback: true,
+  is_builtin: true,
   scopes: ['data:read', 'data:write'],
 };
 

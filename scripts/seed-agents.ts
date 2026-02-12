@@ -16,7 +16,8 @@ const AUTH_TOKEN = process.env.AUTH_TOKEN;
 
 async function getExistingAgent(name: string): Promise<{ id: string } | null> {
   try {
-    const response = await fetch(`${AGENT_API_URL}/agents/definitions`, {
+    // GET /agents returns all agents visible to the user (built-in + personal)
+    const response = await fetch(`${AGENT_API_URL}/agents`, {
       headers: {
         ...(AUTH_TOKEN ? { 'Authorization': `Bearer ${AUTH_TOKEN}` } : {}),
       },
@@ -45,6 +46,11 @@ async function updateAgent(agentId: string, agent: typeof AGENT_DEFINITIONS[0]) 
 
   if (!response.ok) {
     const error = await response.text();
+    // 403 on built-in agents means we're not the owner - that's OK, agent exists
+    if (response.status === 403 && error.includes('Built-in')) {
+      console.log(`  Agent "${agent.name}" exists as built-in (owned by another user). Skipping update.`);
+      return;
+    }
     throw new Error(`Failed to update agent "${agent.name}": ${response.status} ${error}`);
   }
 
