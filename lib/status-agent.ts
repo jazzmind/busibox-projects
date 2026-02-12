@@ -21,6 +21,7 @@ Guidelines:
   tools: {
     names: [
       'list_data_documents',
+      'create_data_document',
       'query_data',
       'insert_records',
       'update_records',
@@ -59,6 +60,7 @@ Data Schema Reference:
   tools: {
     names: [
       'list_data_documents',
+      'create_data_document',
       'query_data',
       'insert_records',
       'update_records',
