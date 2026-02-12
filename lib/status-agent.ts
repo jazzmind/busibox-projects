@@ -28,9 +28,9 @@ Guidelines:
     ],
   },
   workflows: {
-    execution_mode: 'run_once',
+    execution_mode: 'run_max_iterations',
     tool_strategy: 'predefined_pipeline',
-    max_iterations: 10,
+    max_iterations: 20,
   },
   allow_frontier_fallback: true,
   is_builtin: true,
@@ -67,9 +67,9 @@ Data Schema Reference:
     ],
   },
   workflows: {
-    execution_mode: 'run_once',
+    execution_mode: 'run_max_iterations',
     tool_strategy: 'predefined_pipeline',
-    max_iterations: 15,
+    max_iterations: 20,
   },
   allow_frontier_fallback: true,
   is_builtin: true,
