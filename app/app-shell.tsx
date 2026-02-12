@@ -13,13 +13,8 @@ function AppShellContent({ children, basePath }: { children: React.ReactNode; ba
   const [session, setSession] = useState<SessionData>({ user: null, isAuthenticated: false });
   const pathname = usePathname();
   
-  // Portal URL - must be configured via NEXT_PUBLIC_AI_PORTAL_URL
-  // Append /portal to go directly to AI Portal (avoids root redirect)
-  // Guard against NEXT_PUBLIC_AI_PORTAL_URL already containing /portal
-  const portalBaseUrl = (process.env.NEXT_PUBLIC_AI_PORTAL_URL || '').replace(/\/+$/, '');
-  const portalUrl = portalBaseUrl
-    ? (portalBaseUrl.endsWith('/portal') ? portalBaseUrl : `${portalBaseUrl}/portal`)
-    : '';
+  // Portal URL - normalized in AppShell, but also normalize here for safety
+  const portalUrl = normalizePortalUrl(process.env.NEXT_PUBLIC_AI_PORTAL_URL || '');
   
   // App home link - use "/" since Next.js Link automatically prepends basePath
   const appHomeLink = '/';
@@ -145,8 +140,15 @@ function AppShellContent({ children, basePath }: { children: React.ReactNode; ba
   );
 }
 
+// Normalize portal URL: ensure it ends with /portal (but not /portal/portal)
+function normalizePortalUrl(raw: string): string {
+  const base = raw.replace(/\/+$/, '');
+  if (!base) return '';
+  return base.endsWith('/portal') ? base : `${base}/portal`;
+}
+
 export function AppShell({ children, basePath }: { children: React.ReactNode; basePath: string }) {
-  const portalUrl = process.env.NEXT_PUBLIC_AI_PORTAL_URL || '';
+  const portalUrl = normalizePortalUrl(process.env.NEXT_PUBLIC_AI_PORTAL_URL || '');
   const appId = process.env.APP_NAME || 'status-report';
   
   return (
