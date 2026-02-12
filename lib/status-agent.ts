@@ -91,6 +91,7 @@ Remember: The goal is efficient, helpful status tracking. Keep it brief and acti
   execution_mode: 'run_until_done',
   tool_strategy: 'llm_driven',
   max_iterations: 10,
+  allow_frontier_fallback: true,
   scopes: ['data:read', 'data:write'],
 };
 
@@ -257,6 +258,7 @@ Shall I make these updates?"
   execution_mode: 'run_until_done',
   tool_strategy: 'llm_driven',
   max_iterations: 15,
+  allow_frontier_fallback: true,
   scopes: ['data:read', 'data:write'],
 };
 
