@@ -15,8 +15,11 @@ function AppShellContent({ children, basePath }: { children: React.ReactNode; ba
   
   // Portal URL - must be configured via NEXT_PUBLIC_AI_PORTAL_URL
   // Append /portal to go directly to AI Portal (avoids root redirect)
-  const portalBaseUrl = process.env.NEXT_PUBLIC_AI_PORTAL_URL || '';
-  const portalUrl = portalBaseUrl ? `${portalBaseUrl}/portal` : '';
+  // Guard against NEXT_PUBLIC_AI_PORTAL_URL already containing /portal
+  const portalBaseUrl = (process.env.NEXT_PUBLIC_AI_PORTAL_URL || '').replace(/\/+$/, '');
+  const portalUrl = portalBaseUrl
+    ? (portalBaseUrl.endsWith('/portal') ? portalBaseUrl : `${portalBaseUrl}/portal`)
+    : '';
   
   // App home link - use "/" since Next.js Link automatically prepends basePath
   const appHomeLink = '/';
@@ -111,7 +114,7 @@ function AppShellContent({ children, basePath }: { children: React.ReactNode; ba
         session={session}
         onLogout={onLogout}
         portalUrl={portalUrl}
-        accountLink={`${process.env.NEXT_PUBLIC_AI_PORTAL_URL || ''}/portal/account`}
+        accountLink={`${portalUrl}/account`}
         appHomeLink={appHomeLink}
         appName="AI Initiative Status"
         adminNavigation={[]}

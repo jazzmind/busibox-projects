@@ -92,20 +92,20 @@ export function ProjectCard({
         </div>
 
         {/* Team & Tags */}
-        {(project.team.length > 0 || project.tags.length > 0) && (
+        {((project.team?.length ?? 0) > 0 || (project.tags?.length ?? 0) > 0) && (
           <div className="flex flex-wrap gap-2 mt-3">
-            {project.team.length > 0 && (
+            {(project.team?.length ?? 0) > 0 && (
               <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
                 <Users className="w-3 h-3" />
-                {project.team.slice(0, 3).join(', ')}
-                {project.team.length > 3 && ` +${project.team.length - 3}`}
+                {project.team!.slice(0, 3).join(', ')}
+                {project.team!.length > 3 && ` +${project.team!.length - 3}`}
               </span>
             )}
-            {project.tags.length > 0 && (
+            {(project.tags?.length ?? 0) > 0 && (
               <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
                 <Tag className="w-3 h-3" />
-                {project.tags.slice(0, 2).join(', ')}
-                {project.tags.length > 2 && ` +${project.tags.length - 2}`}
+                {project.tags!.slice(0, 2).join(', ')}
+                {project.tags!.length > 2 && ` +${project.tags!.length - 2}`}
               </span>
             )}
           </div>
