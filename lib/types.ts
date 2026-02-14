@@ -167,92 +167,16 @@ export interface CreateStatusUpdateInput {
 }
 
 // ==========================================================================
-// Data Document Types (for data-api)
+// Data Document Types (re-export from busibox-app)
 // ==========================================================================
 
-export interface DataDocument {
-  id: string;
-  name: string;
-  schema?: DataSchema;
-  recordCount: number;
-  visibility: "personal" | "shared";
-  metadata?: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/**
- * Relation types for linking data documents.
- * - 'hasMany': This document's records have children in another document
- * - 'belongsTo': This document's records belong to a parent in another document
- */
-export type DataRelationType = "hasMany" | "belongsTo";
-
-/**
- * Defines a relationship between data documents.
- * Compatible with AppDataRelation from @jazzmind/busibox-app.
- */
-export interface DataRelation {
-  /** The type of relationship */
-  type: DataRelationType;
-  /** Target document name (e.g., 'status-report-tasks') */
-  document: string;
-  /** Field name linking records (e.g., 'projectId') */
-  foreignKey: string;
-  /** Field to display in links (e.g., 'title' or 'name') */
-  displayField?: string;
-  /** UI label for the relation (e.g., 'Tasks', 'Project') */
-  label?: string;
-}
-
-export interface DataSchema {
-  fields: Record<string, FieldDefinition>;
-  indexes?: string[];
-  embedFields?: string[];
-  // Display metadata for app data libraries
-  displayName?: string; // Human-readable name for the document type (e.g., "Projects")
-  itemLabel?: string; // Singular item name (e.g., "Project")
-  sourceApp?: string; // App identifier (e.g., "status-report")
-  visibility?: "personal" | "shared"; // Default visibility for new items
-  allowSharing?: boolean; // Whether items can be shared
-  // Relationships to other data documents
-  relations?: Record<string, DataRelation>;
-}
-
-export interface FieldDefinition {
-  type: "string" | "integer" | "number" | "boolean" | "array" | "object" | "enum" | "datetime";
-  required?: boolean;
-  values?: string[]; // For enum types
-  min?: number;
-  max?: number;
-  // Display hints for form rendering
-  label?: string; // Human-readable field name
-  hidden?: boolean; // Don't show in list/form (e.g., id)
-  multiline?: boolean; // Use textarea for strings
-  widget?: "text" | "textarea" | "select" | "slider" | "number" | "date" | "checkbox" | "tags"; // Override default widget
-  readonly?: boolean; // Cannot edit in form (complex types)
-  order?: number; // Display order in form
-  placeholder?: string; // Placeholder text for input
-}
-
-export interface QueryFilter {
-  field: string;
-  op: "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "in" | "nin" | "contains" | "startswith" | "endswith";
-  value: unknown;
-}
-
-export interface QueryCondition {
-  and?: (QueryFilter | QueryCondition)[];
-  or?: (QueryFilter | QueryCondition)[];
-}
-
-export interface QueryOptions {
-  select?: string[];
-  where?: QueryFilter | QueryCondition;
-  orderBy?: { field: string; direction: "asc" | "desc" }[];
-  limit?: number;
-  offset?: number;
-}
+export type {
+  QueryFilter,
+  QueryCondition,
+  QueryOptions,
+  DataDocument,
+  DocumentInfo,
+} from "@jazzmind/busibox-app";
 
 // ==========================================================================
 // Utility Types

@@ -1,10 +1,20 @@
 /**
  * Data API Client for Status Report App
- * 
+ *
  * Provides typed CRUD operations for projects, tasks, and status updates
- * using the Busibox data-api service.
+ * using the Busibox data-api service. Uses shared client from @jazzmind/busibox-app.
  */
 
+import {
+  generateId,
+  getNow,
+  queryRecords,
+  insertRecords,
+  updateRecords,
+  deleteRecords,
+  ensureDocuments,
+} from '@jazzmind/busibox-app';
+import type { AppDataSchema } from '@jazzmind/busibox-app';
 import type {
   Project,
   CreateProjectInput,
@@ -14,14 +24,8 @@ import type {
   UpdateTaskInput,
   StatusUpdate,
   CreateStatusUpdateInput,
-  DataDocument,
-  DataSchema,
-  QueryOptions,
-  QueryFilter,
-  QueryCondition,
 } from './types';
-
-const DATA_API_URL = process.env.DATA_API_URL || 'http://localhost:8002';
+import type { QueryFilter } from '@jazzmind/busibox-app';
 
 // ==========================================================================
 // Data Document Names
@@ -34,19 +38,31 @@ export const DOCUMENTS = {
 } as const;
 
 // ==========================================================================
-// Schemas
+// Schemas (with graphNode for Neo4j sync)
 // ==========================================================================
 
-export const projectSchema: DataSchema = {
+export const projectSchema: AppDataSchema = {
   fields: {
     id: { type: 'string', required: true, hidden: true },
     name: { type: 'string', required: true, label: 'Project Name', order: 1 },
     description: { type: 'string', label: 'Description', multiline: true, order: 2 },
-    status: { type: 'enum', values: ['on-track', 'at-risk', 'off-track', 'completed', 'paused'], label: 'Status', order: 3 },
+    status: {
+      type: 'enum',
+      values: ['on-track', 'at-risk', 'off-track', 'completed', 'paused'],
+      label: 'Status',
+      order: 3,
+    },
     progress: { type: 'integer', min: 0, max: 100, label: 'Progress', widget: 'slider', order: 4 },
     nextCheckpoint: { type: 'string', label: 'Next Checkpoint', order: 5 },
     checkpointDate: { type: 'string', label: 'Checkpoint Date', widget: 'date', order: 6 },
-    checkpointProgress: { type: 'integer', min: 0, max: 100, label: 'Checkpoint Progress', widget: 'slider', order: 7 },
+    checkpointProgress: {
+      type: 'integer',
+      min: 0,
+      max: 100,
+      label: 'Checkpoint Progress',
+      widget: 'slider',
+      order: 7,
+    },
     owner: { type: 'string', label: 'Owner', order: 8 },
     team: { type: 'array', label: 'Team Members', widget: 'tags', readonly: true, order: 9 },
     tags: { type: 'array', label: 'Tags', widget: 'tags', readonly: true, order: 10 },
@@ -58,6 +74,8 @@ export const projectSchema: DataSchema = {
   sourceApp: 'status-report',
   visibility: 'personal',
   allowSharing: true,
+  graphNode: 'StatusProject',
+  graphRelationships: [],
   relations: {
     tasks: {
       type: 'hasMany',
@@ -76,15 +94,25 @@ export const projectSchema: DataSchema = {
   },
 };
 
-export const taskSchema: DataSchema = {
+export const taskSchema: AppDataSchema = {
   fields: {
     id: { type: 'string', required: true, hidden: true },
     projectId: { type: 'string', required: true, hidden: true },
     title: { type: 'string', required: true, label: 'Task Title', order: 1 },
     description: { type: 'string', label: 'Description', multiline: true, order: 2 },
-    status: { type: 'enum', values: ['todo', 'in-progress', 'blocked', 'done'], label: 'Status', order: 3 },
+    status: {
+      type: 'enum',
+      values: ['todo', 'in-progress', 'blocked', 'done'],
+      label: 'Status',
+      order: 3,
+    },
     assignee: { type: 'string', label: 'Assignee', order: 4 },
-    priority: { type: 'enum', values: ['low', 'medium', 'high', 'critical'], label: 'Priority', order: 5 },
+    priority: {
+      type: 'enum',
+      values: ['low', 'medium', 'high', 'critical'],
+      label: 'Priority',
+      order: 5,
+    },
     dueDate: { type: 'string', label: 'Due Date', widget: 'date', order: 6 },
     order: { type: 'integer', label: 'Order', hidden: true },
     createdAt: { type: 'string', label: 'Created', readonly: true, hidden: true },
@@ -95,6 +123,15 @@ export const taskSchema: DataSchema = {
   sourceApp: 'status-report',
   visibility: 'personal',
   allowSharing: true,
+  graphNode: 'StatusTask',
+  graphRelationships: [
+    {
+      source_label: 'StatusTask',
+      target_field: 'projectId',
+      target_label: 'StatusProject',
+      relationship: 'BELONGS_TO',
+    },
+  ],
   relations: {
     project: {
       type: 'belongsTo',
@@ -106,11 +143,17 @@ export const taskSchema: DataSchema = {
   },
 };
 
-export const updateSchema: DataSchema = {
+export const updateSchema: AppDataSchema = {
   fields: {
     id: { type: 'string', required: true, hidden: true },
     projectId: { type: 'string', required: true, hidden: true },
-    content: { type: 'string', required: true, label: 'Update Content', multiline: true, order: 1 },
+    content: {
+      type: 'string',
+      required: true,
+      label: 'Update Content',
+      multiline: true,
+      order: 1,
+    },
     author: { type: 'string', label: 'Author', order: 2 },
     tasksCompleted: { type: 'array', label: 'Tasks Completed', readonly: true, order: 3 },
     tasksAdded: { type: 'array', label: 'Tasks Added', readonly: true, order: 4 },
@@ -123,6 +166,15 @@ export const updateSchema: DataSchema = {
   sourceApp: 'status-report',
   visibility: 'personal',
   allowSharing: true,
+  graphNode: 'StatusUpdate',
+  graphRelationships: [
+    {
+      source_label: 'StatusUpdate',
+      target_field: 'projectId',
+      target_label: 'StatusProject',
+      relationship: 'BELONGS_TO',
+    },
+  ],
   relations: {
     project: {
       type: 'belongsTo',
@@ -135,287 +187,36 @@ export const updateSchema: DataSchema = {
 };
 
 // ==========================================================================
-// Helper Functions
+// ensureDataDocuments
 // ==========================================================================
-
-function generateId(): string {
-  return crypto.randomUUID();
-}
-
-function getNow(): string {
-  return new Date().toISOString();
-}
-
-async function dataApiRequest<T>(
-  token: string,
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const response = await fetch(`${DATA_API_URL}${path}`, {
-    ...options,
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(error.error || error.message || `API error: ${response.status}`);
-  }
-
-  return response.json();
-}
-
-// ==========================================================================
-// Document Management
-// ==========================================================================
-
-interface DocumentInfo {
-  id: string;
-  name: string;
-  recordCount: number;
-}
-
-export async function listDataDocuments(token: string): Promise<DocumentInfo[]> {
-  const response = await dataApiRequest<{ documents: DocumentInfo[] }>(
-    token,
-    '/data'
-  );
-  return response.documents || [];
-}
-
-export async function createDataDocument(
-  token: string,
-  name: string,
-  schema: DataSchema,
-  visibility: 'personal' | 'shared' = 'shared'
-): Promise<DataDocument> {
-  // Extract sourceApp from schema for API request
-  const sourceApp = schema.sourceApp;
-  
-  return dataApiRequest<DataDocument>(token, '/data', {
-    method: 'POST',
-    body: JSON.stringify({
-      name,
-      schema,
-      visibility,
-      enableCache: false,
-      sourceApp, // Pass sourceApp to data-api for app data library support
-    }),
-  });
-}
-
-export async function getDocumentByName(
-  token: string,
-  name: string
-): Promise<DataDocument | null> {
-  const documents = await listDataDocuments(token);
-  const doc = documents.find(d => d.name === name);
-  if (!doc) return null;
-  
-  return dataApiRequest<DataDocument>(token, `/data/${doc.id}`);
-}
-
-/**
- * Get full document details including metadata
- */
-export async function getDocumentDetails(
-  token: string,
-  documentId: string
-): Promise<DataDocument & { sourceApp?: string; metadata?: Record<string, unknown> }> {
-  return dataApiRequest<DataDocument & { sourceApp?: string; metadata?: Record<string, unknown> }>(
-    token,
-    `/data/${documentId}?includeRecords=false`
-  );
-}
-
-/**
- * Update a document's metadata (used to add sourceApp to existing docs)
- */
-export async function updateDocumentMetadata(
-  token: string,
-  documentId: string,
-  metadata: Record<string, unknown>,
-  schema?: DataSchema
-): Promise<void> {
-  await dataApiRequest<unknown>(token, `/data/${documentId}`, {
-    method: 'PUT',
-    body: JSON.stringify({
-      metadata,
-      schema, // Also update schema to include display hints
-    }),
-  });
-}
-
-/**
- * Ensure document has sourceApp in metadata and up-to-date schema (including relations)
- */
-async function ensureSchemaAndMetadata(
-  token: string,
-  documentId: string,
-  schema: DataSchema
-): Promise<void> {
-  try {
-    const doc = await getDocumentDetails(token, documentId);
-    
-    // Check if sourceApp is missing or schema needs updating
-    // The schema is returned at the top level of the document, not in metadata
-    const existingSchema = doc.schema;
-    const needsSourceApp = !doc.sourceApp;
-    
-    // Check if relations need updating - compare relation names
-    const existingRelationNames = Object.keys(existingSchema?.relations || {});
-    const newRelationNames = Object.keys(schema.relations || {});
-    const needsSchemaUpdate = 
-      // No relations yet but schema has relations
-      (existingRelationNames.length === 0 && newRelationNames.length > 0) ||
-      // Different number of relations
-      (existingRelationNames.length !== newRelationNames.length) ||
-      // Different relation names
-      !newRelationNames.every(name => existingRelationNames.includes(name));
-    
-    if (needsSourceApp || needsSchemaUpdate) {
-      console.log(`[status-report] Patching document ${documentId}`, {
-        needsSourceApp,
-        needsSchemaUpdate,
-        existingRelations: existingRelationNames,
-        newRelations: newRelationNames,
-      });
-      
-      // Merge new sourceApp with existing metadata to avoid losing data
-      const existingMetadata = doc.metadata || {};
-      const mergedMetadata = {
-        ...existingMetadata,
-        sourceApp: 'status-report',
-      };
-      
-      await updateDocumentMetadata(
-        token,
-        documentId,
-        mergedMetadata,
-        schema // Always update schema to ensure it has relations
-      );
-    }
-  } catch (error) {
-    console.warn(`[status-report] Failed to ensure schema for document ${documentId}:`, error);
-    // Don't throw - this is a non-critical enhancement
-  }
-}
 
 export async function ensureDataDocuments(token: string): Promise<{
   projects: string;
   tasks: string;
   updates: string;
 }> {
-  const documents = await listDataDocuments(token);
-  
-  let projectsDoc = documents.find(d => d.name === DOCUMENTS.PROJECTS);
-  let tasksDoc = documents.find(d => d.name === DOCUMENTS.TASKS);
-  let updatesDoc = documents.find(d => d.name === DOCUMENTS.UPDATES);
-
-  if (!projectsDoc) {
-    const created = await createDataDocument(token, DOCUMENTS.PROJECTS, projectSchema, 'personal');
-    projectsDoc = { id: created.id, name: created.name, recordCount: 0 };
-  } else {
-    // Ensure existing document has sourceApp and up-to-date schema with relations
-    await ensureSchemaAndMetadata(token, projectsDoc.id, projectSchema);
-  }
-
-  if (!tasksDoc) {
-    const created = await createDataDocument(token, DOCUMENTS.TASKS, taskSchema, 'personal');
-    tasksDoc = { id: created.id, name: created.name, recordCount: 0 };
-  } else {
-    // Ensure existing document has sourceApp and up-to-date schema with relations
-    await ensureSchemaAndMetadata(token, tasksDoc.id, taskSchema);
-  }
-
-  if (!updatesDoc) {
-    const created = await createDataDocument(token, DOCUMENTS.UPDATES, updateSchema, 'personal');
-    updatesDoc = { id: created.id, name: created.name, recordCount: 0 };
-  } else {
-    // Ensure existing document has sourceApp and up-to-date schema with relations
-    await ensureSchemaAndMetadata(token, updatesDoc.id, updateSchema);
-  }
-
-  return {
-    projects: projectsDoc.id,
-    tasks: tasksDoc.id,
-    updates: updatesDoc.id,
-  };
-}
-
-// ==========================================================================
-// Generic Record Operations
-// ==========================================================================
-
-async function queryRecords<T>(
-  token: string,
-  documentId: string,
-  options: QueryOptions = {}
-): Promise<{ records: T[]; total: number }> {
-  return dataApiRequest<{ records: T[]; total: number }>(
+  const ids = await ensureDocuments(
     token,
-    `/data/${documentId}/query`,
     {
-      method: 'POST',
-      body: JSON.stringify({
-        select: options.select,
-        where: options.where,
-        orderBy: options.orderBy,
-        limit: options.limit || 100,
-        offset: options.offset || 0,
-      }),
-    }
+      projects: {
+        name: DOCUMENTS.PROJECTS,
+        schema: projectSchema,
+        visibility: 'personal',
+      },
+      tasks: {
+        name: DOCUMENTS.TASKS,
+        schema: taskSchema,
+        visibility: 'personal',
+      },
+      updates: {
+        name: DOCUMENTS.UPDATES,
+        schema: updateSchema,
+        visibility: 'personal',
+      },
+    },
+    'status-report'
   );
-}
-
-async function insertRecords<T>(
-  token: string,
-  documentId: string,
-  records: T[]
-): Promise<{ count: number; recordIds: string[] }> {
-  return dataApiRequest<{ count: number; recordIds: string[] }>(
-    token,
-    `/data/${documentId}/records`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ records, validate: true }),
-    }
-  );
-}
-
-async function updateRecords(
-  token: string,
-  documentId: string,
-  updates: Record<string, unknown>,
-  where?: QueryFilter | QueryCondition
-): Promise<{ count: number }> {
-  return dataApiRequest<{ count: number }>(
-    token,
-    `/data/${documentId}/records`,
-    {
-      method: 'PUT',
-      body: JSON.stringify({ updates, where, validate: true }),
-    }
-  );
-}
-
-async function deleteRecords(
-  token: string,
-  documentId: string,
-  where?: QueryFilter | QueryCondition,
-  recordIds?: string[]
-): Promise<{ count: number }> {
-  return dataApiRequest<{ count: number }>(
-    token,
-    `/data/${documentId}/records`,
-    {
-      method: 'DELETE',
-      body: JSON.stringify({ where, recordIds }),
-    }
-  );
+  return ids as { projects: string; tasks: string; updates: string };
 }
 
 // ==========================================================================
@@ -428,7 +229,7 @@ export async function listProjects(
   options?: { status?: string; limit?: number; offset?: number }
 ): Promise<{ projects: Project[]; total: number }> {
   const where = options?.status
-    ? { field: 'status', op: 'eq' as const, value: options.status }
+    ? ({ field: 'status', op: 'eq' as const, value: options.status } satisfies QueryFilter)
     : undefined;
 
   const result = await queryRecords<Project>(token, documentId, {
@@ -527,7 +328,7 @@ export async function listTasks(
   options?: { projectId?: string; status?: string; limit?: number; offset?: number }
 ): Promise<{ tasks: Task[]; total: number }> {
   const conditions: QueryFilter[] = [];
-  
+
   if (options?.projectId) {
     conditions.push({ field: 'projectId', op: 'eq', value: options.projectId });
   }
@@ -535,11 +336,12 @@ export async function listTasks(
     conditions.push({ field: 'status', op: 'eq', value: options.status });
   }
 
-  const where = conditions.length > 0
-    ? conditions.length === 1
-      ? conditions[0]
-      : { and: conditions }
-    : undefined;
+  const where =
+    conditions.length > 0
+      ? conditions.length === 1
+        ? conditions[0]
+        : { and: conditions }
+      : undefined;
 
   const result = await queryRecords<Task>(token, documentId, {
     where,
@@ -573,8 +375,7 @@ export async function createTask(
   input: CreateTaskInput
 ): Promise<Task> {
   const now = getNow();
-  
-  // Get max order for this project
+
   const existingTasks = await listTasks(token, documentId, { projectId: input.projectId });
   const maxOrder = existingTasks.tasks.reduce((max, t) => Math.max(max, t.order || 0), 0);
 
@@ -643,7 +444,7 @@ export async function listStatusUpdates(
   options?: { projectId?: string; limit?: number; offset?: number }
 ): Promise<{ updates: StatusUpdate[]; total: number }> {
   const where = options?.projectId
-    ? { field: 'projectId', op: 'eq' as const, value: options.projectId }
+    ? ({ field: 'projectId', op: 'eq' as const, value: options.projectId } satisfies QueryFilter)
     : undefined;
 
   const result = await queryRecords<StatusUpdate>(token, documentId, {
@@ -728,16 +529,13 @@ export async function getDashboardData(
     completed: number;
   };
 }> {
-  // Fetch all projects
   const { projects } = await listProjects(token, documentIds.projects, { limit: 100 });
-  
-  // Fetch all tasks and updates in parallel
+
   const [allTasks, allUpdates] = await Promise.all([
     listTasks(token, documentIds.tasks, { limit: 500 }),
     listStatusUpdates(token, documentIds.updates, { limit: 100 }),
   ]);
 
-  // Group tasks and updates by project
   const tasksByProject = new Map<string, Task[]>();
   const updatesByProject = new Map<string, StatusUpdate[]>();
 
@@ -755,20 +553,18 @@ export async function getDashboardData(
     updatesByProject.get(update.projectId)!.push(update);
   }
 
-  // Build project data with tasks and updates
-  const projectsWithDetails = projects.map(project => ({
+  const projectsWithDetails = projects.map((project) => ({
     ...project,
-    tasks: (tasksByProject.get(project.id) || []).filter(t => t.status !== 'done').slice(0, 5),
+    tasks: (tasksByProject.get(project.id) || []).filter((t) => t.status !== 'done').slice(0, 5),
     recentUpdates: (updatesByProject.get(project.id) || []).slice(0, 3),
   }));
 
-  // Calculate stats
   const stats = {
     totalProjects: projects.length,
-    onTrack: projects.filter(p => p.status === 'on-track').length,
-    atRisk: projects.filter(p => p.status === 'at-risk').length,
-    offTrack: projects.filter(p => p.status === 'off-track').length,
-    completed: projects.filter(p => p.status === 'completed').length,
+    onTrack: projects.filter((p) => p.status === 'on-track').length,
+    atRisk: projects.filter((p) => p.status === 'at-risk').length,
+    offTrack: projects.filter((p) => p.status === 'off-track').length,
+    completed: projects.filter((p) => p.status === 'completed').length,
   };
 
   return { projects: projectsWithDetails, stats };
