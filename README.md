@@ -48,7 +48,7 @@ Two custom agents for intelligent interactions:
 DATA_API_URL=http://localhost:8002      # Data storage
 AGENT_API_URL=http://localhost:8000     # AI chat
 AUTHZ_BASE_URL=http://localhost:8010    # Authentication
-NEXT_PUBLIC_AI_PORTAL_URL=http://localhost:3000
+NEXT_PUBLIC_BUSIBOX_PORTAL_URL=http://localhost:3000
 ```
 
 See `env.example` for full configuration.

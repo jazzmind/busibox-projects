@@ -211,7 +211,7 @@ PORT=3003
 APP_NAME=busibox-projects
 
 # Authentication
-NEXT_PUBLIC_AI_PORTAL_URL=http://localhost:3000
+NEXT_PUBLIC_BUSIBOX_PORTAL_URL=http://localhost:3000
 AUTHZ_BASE_URL=http://localhost:8010
 
 # Backend Services
@@ -223,8 +223,6 @@ AGENT_API_URL=http://localhost:8000
 
 ```bash
 NEXT_PUBLIC_BASE_PATH=           # /status for nginx proxy
-AUTHZ_CLIENT_ID=busibox-projects
-AUTHZ_CLIENT_SECRET=secret
 VERBOSE_AUTHZ_LOGGING=false
 ```
 

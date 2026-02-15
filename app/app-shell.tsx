@@ -14,7 +14,7 @@ function AppShellContent({ children, basePath }: { children: React.ReactNode; ba
   const pathname = usePathname();
   
   // Portal URL - normalized in AppShell, but also normalize here for safety
-  const portalUrl = normalizePortalUrl(process.env.NEXT_PUBLIC_AI_PORTAL_URL || '');
+  const portalUrl = normalizePortalUrl(process.env.NEXT_PUBLIC_BUSIBOX_PORTAL_URL || '');
   
   // App home link - use "/" since Next.js Link automatically prepends basePath
   const appHomeLink = '/';
@@ -149,7 +149,7 @@ function normalizePortalUrl(raw: string): string {
 }
 
 export function AppShell({ children, basePath }: { children: React.ReactNode; basePath: string }) {
-  const rawPortalUrl = process.env.NEXT_PUBLIC_AI_PORTAL_URL || '';
+  const rawPortalUrl = process.env.NEXT_PUBLIC_BUSIBOX_PORTAL_URL || '';
   const appId = process.env.APP_NAME || 'busibox-projects';
   
   return (
