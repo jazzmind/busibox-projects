@@ -21,6 +21,7 @@ import {
   Search, ZoomIn, ZoomOut, Maximize2, RotateCcw,
   Loader2, AlertCircle, Network, X, ChevronRight,
   FolderKanban, CheckSquare, FileText, ExternalLink,
+  Play, Pause,
 } from 'lucide-react';
 // Status types are used implicitly via the color maps below
 
@@ -211,6 +212,7 @@ export function ProjectGraph() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const graphRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const hasAutoFitRef = useRef(false);
 
   // ==========================================================================
   // Data Fetching
@@ -502,52 +504,63 @@ export function ProjectGraph() {
     [selectedNode]
   );
 
-  // Container dimensions
-  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  // Container dimensions - use simple window-based sizing.
+  // The container is w-full so width = parent width.
+  // Height is fixed at 70vh via CSS; we read it once and on resize.
+  const [dimensions, setDimensions] = useState({ width: 900, height: 600 });
 
   useEffect(() => {
-    const updateDimensions = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        setDimensions({
-          width: rect.width || 800,
-          height: Math.max(rect.height, 600),
-        });
-      }
+    const measure = () => {
+      const el = containerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const w = Math.floor(rect.width) || 900;
+      const h = Math.floor(rect.height) || 600;
+      setDimensions(prev => {
+        if (prev.width === w && prev.height === h) return prev;
+        return { width: w, height: h };
+      });
     };
 
-    updateDimensions();
-    window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
+    // Measure after first paint (container needs to be in DOM)
+    const raf = requestAnimationFrame(measure);
+    window.addEventListener('resize', measure);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', measure);
+    };
   }, []);
 
-  // Tune force simulation for readability:
-  // - Keep projects closer to each other
-  // - Push tasks/updates farther from project hubs
-  // - Add collision force to reduce label overlap
+  // Tune force simulation once after data loads.
+  // Uses a ref to track whether tuning has been applied so we don't
+  // re-trigger on every render (which caused infinite CPU loops).
+  const hasTunedRef = useRef(false);
+
   useEffect(() => {
     if (!graphRef.current || filteredData.nodes.length === 0) return;
+    if (hasTunedRef.current) return;
+    hasTunedRef.current = true;
 
     const tuneForces = async () => {
       const graph = graphRef.current;
+      if (!graph) return;
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const linkForce: any = graph.d3Force('link');
       if (linkForce && typeof linkForce.distance === 'function') {
         linkForce.distance((link: ForceGraphLink) => {
-          if (link.label === 'BELONGS_TO') return 130;
+          if (link.label === 'BELONGS_TO') return 155;
           if (link.label === 'SIMILAR_TO') return 170;
-          return 85;
+          return 105;
         });
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const chargeForce: any = graph.d3Force('charge');
       if (chargeForce && typeof chargeForce.strength === 'function') {
-        chargeForce.strength(-90);
+        chargeForce.strength(-125);
       }
 
-      // d3-force is loaded at runtime to avoid static typing friction here
       const d3 = (await import('d3-force')) as unknown as {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         forceCollide: (radius: (node: any) => number) => any;
@@ -556,10 +569,10 @@ export function ProjectGraph() {
         'collision',
         d3.forceCollide((node: ForceGraphNode) => {
           const type = getEntityType(node);
-          if (type === 'StatusProject') return 42;
-          if (type === 'StatusTask') return 28;
-          if (type === 'StatusUpdate') return 22;
-          return 20;
+          if (type === 'StatusProject') return 48;
+          if (type === 'StatusTask') return 34;
+          if (type === 'StatusUpdate') return 28;
+          return 24;
         })
       );
 
@@ -579,6 +592,89 @@ export function ProjectGraph() {
     const updates = graphData.nodes.filter(n => getEntityType(n) === 'StatusUpdate');
     return { projects: projects.length, tasks: tasks.length, updates: updates.length };
   }, [graphData.nodes]);
+
+  // ==========================================================================
+  // Auto-Tour: cycle through projects every 5 seconds
+  // ==========================================================================
+
+  const [touring, setTouring] = useState(true); // default to play
+  const tourIndexRef = useRef(0);
+  const tourTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Collect project nodes (stable reference via useMemo)
+  const projectNodes = useMemo(
+    () => filteredData.nodes.filter(n => getEntityType(n) === 'StatusProject'),
+    [filteredData.nodes]
+  );
+
+  // The core tour action: center on a project and select it
+  const visitProject = useCallback(
+    (index: number) => {
+      if (projectNodes.length === 0 || !graphRef.current) return;
+      const idx = index % projectNodes.length;
+      const node = projectNodes[idx];
+      if (!node) return;
+
+      // Select the node (opens detail panel + expands spokes)
+      handleNodeClick(node);
+
+      // Smoothly center the camera on the node
+      graphRef.current.centerAt(node.x, node.y, 800);
+      graphRef.current.zoom(2.5, 800);
+    },
+    [projectNodes, handleNodeClick]
+  );
+
+  // Schedule the next tour step
+  const scheduleNextTour = useCallback(() => {
+    if (tourTimerRef.current) clearTimeout(tourTimerRef.current);
+    tourTimerRef.current = setTimeout(() => {
+      tourIndexRef.current += 1;
+      visitProject(tourIndexRef.current);
+      scheduleNextTour();
+    }, 5000);
+  }, [visitProject]);
+
+  // Start / stop the tour when `touring` changes
+  useEffect(() => {
+    if (!touring || projectNodes.length === 0) {
+      if (tourTimerRef.current) clearTimeout(tourTimerRef.current);
+      return;
+    }
+
+    // Kick off the first visit after the simulation has had time to settle
+    const initialDelay = setTimeout(() => {
+      visitProject(tourIndexRef.current);
+      scheduleNextTour();
+    }, 2000);
+
+    return () => {
+      clearTimeout(initialDelay);
+      if (tourTimerRef.current) clearTimeout(tourTimerRef.current);
+    };
+  }, [touring, projectNodes.length, visitProject, scheduleNextTour]);
+
+  // Pause the tour when the user manually clicks a node
+  const handleNodeClickWithTourPause = useCallback(
+    (node: ForceGraphNode) => {
+      // If the tour triggered this, don't pause
+      // But if the user clicked, pause the tour
+      setTouring(false);
+      handleNodeClick(node);
+    },
+    [handleNodeClick]
+  );
+
+  // Toggle play/pause
+  const toggleTour = useCallback(() => {
+    setTouring(prev => {
+      if (!prev) {
+        // Resuming: advance to the next project
+        tourIndexRef.current += 1;
+      }
+      return !prev;
+    });
+  }, []);
 
   // ==========================================================================
   // Render
@@ -681,8 +777,20 @@ export function ProjectGraph() {
             )}
           </div>
 
-          {/* Zoom Controls */}
+          {/* Tour + Zoom Controls */}
           <div className="flex items-center gap-1">
+            <button
+              onClick={toggleTour}
+              className={`p-1.5 border rounded-md transition-colors ${
+                touring
+                  ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                  : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+              }`}
+              title={touring ? 'Pause Tour' : 'Play Tour'}
+            >
+              {touring ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+            </button>
+            <div className="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-0.5" />
             <button
               onClick={handleZoomIn}
               className="p-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
@@ -720,56 +828,57 @@ export function ProjectGraph() {
         {/* Graph Canvas */}
         <div
           ref={containerRef}
-          className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
-          style={{ minHeight: 600 }}
+          className="w-full h-[70vh] min-h-[600px] bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
         >
           <ForceGraph2D
-            ref={graphRef}
-            graphData={filteredData}
-            nodeId="id"
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            nodeLabel={(node: any) => `${node.name || node.title || node.id} (${getFriendlyType(node)})`}
-            nodeCanvasObject={nodeCanvasObject}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
-              const r = Math.max(5 * Math.sqrt(node.val || 1), 3) + 2;
-              ctx.beginPath();
-              ctx.arc(node.x!, node.y!, r, 0, 2 * Math.PI);
-              ctx.fillStyle = color;
-              ctx.fill();
-            }}
-            linkDirectionalArrowLength={4}
-            linkDirectionalArrowRelPos={1}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            linkColor={(link: any) => {
-              if (link.label === 'SIMILAR_TO') return '#a855f7';
-              const isDark = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
-              return isDark ? '#4b5563' : '#d1d5db';
-            }}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            linkWidth={(link: any) => (link.label === 'SIMILAR_TO' ? 1.6 : 0.8)}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            linkLineDash={(link: any) => (link.label === 'SIMILAR_TO' ? [6, 3] : null)}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            linkLabel={(link: any) =>
-              link.label === 'SIMILAR_TO' && typeof link.similarityScore === 'number'
-                ? `${link.label} (${Math.round(link.similarityScore * 100)}%)`
-                : link.label
-            }
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            onNodeClick={(node: any) => handleNodeClick(node as ForceGraphNode)}
-            width={dimensions.width}
-            height={dimensions.height}
-            cooldownTicks={100}
-            d3AlphaDecay={0.02}
-            d3VelocityDecay={0.3}
-            onEngineStop={() => {
-              if (graphRef.current) {
-                graphRef.current.zoomToFit(400, 50);
+              ref={graphRef}
+              graphData={filteredData}
+              nodeId="id"
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              nodeLabel={(node: any) => `${node.name || node.title || node.id} (${getFriendlyType(node)})`}
+              nodeCanvasObject={nodeCanvasObject}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
+                const r = Math.max(5 * Math.sqrt(node.val || 1), 3) + 2;
+                ctx.beginPath();
+                ctx.arc(node.x!, node.y!, r, 0, 2 * Math.PI);
+                ctx.fillStyle = color;
+                ctx.fill();
+              }}
+              linkDirectionalArrowLength={4}
+              linkDirectionalArrowRelPos={1}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              linkColor={(link: any) => {
+                if (link.label === 'SIMILAR_TO') return '#a855f7';
+                const isDark = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
+                return isDark ? '#4b5563' : '#d1d5db';
+              }}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              linkWidth={(link: any) => (link.label === 'SIMILAR_TO' ? 1.6 : 0.8)}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              linkLineDash={(link: any) => (link.label === 'SIMILAR_TO' ? [6, 3] : null)}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              linkLabel={(link: any) =>
+                link.label === 'SIMILAR_TO' && typeof link.similarityScore === 'number'
+                  ? `${link.label} (${Math.round(link.similarityScore * 100)}%)`
+                  : link.label
               }
-            }}
-            backgroundColor="transparent"
-          />
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              onNodeClick={(node: any) => handleNodeClickWithTourPause(node as ForceGraphNode)}
+              width={dimensions.width}
+              height={dimensions.height}
+              cooldownTicks={200}
+              d3AlphaDecay={0.012}
+              d3VelocityDecay={0.28}
+              onEngineStop={() => {
+                if (graphRef.current && !hasAutoFitRef.current) {
+                  graphRef.current.zoomToFit(600, 110);
+                  hasAutoFitRef.current = true;
+                }
+              }}
+              backgroundColor="transparent"
+            />
+          
         </div>
 
         {/* Detail Panel */}
@@ -947,7 +1056,9 @@ export function ProjectGraph() {
             <span className="inline-block w-5 h-0.5 border-t-2 border-dashed border-violet-500" />
             Similarity Links
           </span>
-          <span className="ml-auto text-gray-400 dark:text-gray-500">Click nodes to expand | Scroll to zoom | Drag to pan</span>
+          <span className="ml-auto text-gray-400 dark:text-gray-500">
+            {touring ? 'Auto-touring projects...' : 'Click nodes to expand'} | Scroll to zoom | Drag to pan
+          </span>
         </div>
       </div>
     </div>

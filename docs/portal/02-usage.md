@@ -1,11 +1,11 @@
 ---
-title: "Using Status Report"
+title: "Using AI Initiative Status"
 category: "apps"
 order: 2
 description: "How to manage projects, track tasks, and use AI-powered status updates"
 published: true
-app_id: "status-report"
-app_name: "Status Report"
+app_id: "busibox-projects"
+app_name: "AI Initiative Status"
 ---
 
 # Using Status Report

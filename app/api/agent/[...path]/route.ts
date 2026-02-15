@@ -12,7 +12,7 @@
  * - Exchanges the session JWT for an agent-api token server-side
  * - The client doesn't need to pass any token - cookies are included automatically
  * 
- * Based on agent-manager's implementation.
+ * Based on busibox-agents's implementation.
  */
 
 import { NextRequest, NextResponse } from 'next/server';

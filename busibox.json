@@ -1,7 +1,7 @@
 {
   "$schema": "https://busibox.io/schemas/app-manifest-v1.json",
   "name": "AI Initiative Status",
-  "id": "status-report",
+  "id": "busibox-projects",
   "version": "1.0.0",
   "description": "Track and visualize the status of AI initiatives with intelligent status updates via conversational AI agents.",
   "icon": "BarChart3",

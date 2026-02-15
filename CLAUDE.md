@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) and Cursor AI when w
 
 ## Project Overview
 
-**Status Report** is a Next.js application for tracking and visualizing the status of AI initiatives with intelligent status updates via conversational AI agents. It integrates with the Busibox infrastructure using frontend-only mode (no direct database access).
+**AI Initiative Status** (busibox-projects) is a Next.js application for tracking and visualizing the status of AI initiatives with intelligent status updates via conversational AI agents. It integrates with the Busibox infrastructure using frontend-only mode (no direct database access).
 
 **Key Architecture**: Pure frontend with data stored via data-api and intelligent chat via agent-api. No Prisma or direct database access.
 
@@ -55,10 +55,10 @@ AGENT_API_URL=http://localhost:8000 AUTH_TOKEN=your-token npx tsx scripts/seed-a
 cd /path/to/busibox/provision/ansible
 
 # Deploy to production:
-make install SERVICE=status-report
+make install SERVICE=busibox-projects
 
 # Deploy to staging:
-make install SERVICE=status-report INV=inventory/staging
+make install SERVICE=busibox-projects INV=inventory/staging
 ```
 
 ## Architecture
@@ -76,7 +76,7 @@ make install SERVICE=status-report INV=inventory/staging
 ### Project Structure
 
 ```
-status-report/
+busibox-projects/
 ├── app/                           # Next.js App Router
 │   ├── api/                       # API routes
 │   │   ├── chat/status/           # Agent chat proxy
@@ -114,18 +114,18 @@ status-report/
 
 Data is stored in three data-api documents:
 
-**Projects** (`status-report-projects`):
+**Projects** (`busibox-projects-projects`):
 - id, name, description
 - status (on-track, at-risk, off-track, completed, paused)
 - progress, checkpointProgress, nextCheckpoint, checkpointDate
 - owner, team, tags
 
-**Tasks** (`status-report-tasks`):
+**Tasks** (`busibox-projects-tasks`):
 - id, projectId, title, description
 - status (todo, in-progress, blocked, done)
 - assignee, priority, dueDate, order
 
-**Status Updates** (`status-report-updates`):
+**Status Updates** (`busibox-projects-updates`):
 - id, projectId, content (markdown)
 - author, tasksCompleted, tasksAdded
 - previousStatus, newStatus
@@ -208,7 +208,7 @@ Uses `SimpleChatInterface` from `@jazzmind/busibox-app`:
 # Application
 NODE_ENV=development
 PORT=3003
-APP_NAME=status-report
+APP_NAME=busibox-projects
 
 # Authentication
 NEXT_PUBLIC_AI_PORTAL_URL=http://localhost:3000
@@ -223,7 +223,7 @@ AGENT_API_URL=http://localhost:8000
 
 ```bash
 NEXT_PUBLIC_BASE_PATH=           # /status for nginx proxy
-AUTHZ_CLIENT_ID=status-report
+AUTHZ_CLIENT_ID=busibox-projects
 AUTHZ_CLIENT_SECRET=secret
 VERBOSE_AUTHZ_LOGGING=false
 ```
@@ -327,7 +327,7 @@ npm install
 ## Related Projects
 
 - **Busibox**: Infrastructure and deployment automation
-- **AI Portal**: Main dashboard application
+- **busibox-portal**: Main dashboard application
 - **Busibox-App**: Shared component library (@jazzmind/busibox-app)
 - **App Template**: Base template this was built from
 

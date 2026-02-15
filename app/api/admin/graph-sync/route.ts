@@ -1,7 +1,7 @@
 /**
  * Admin Graph Sync API Route
  * 
- * POST: Re-sync all status-report data documents to the graph database (Neo4j).
+ * POST: Re-sync all busibox-projects data documents to the graph database (Neo4j).
  * 
  * This first ensures each document's schema is up-to-date (including graphNode
  * and graphRelationships fields), then triggers graph-sync for each document
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                metadata: { sourceApp: 'status-report' },
+                metadata: { sourceApp: 'busibox-projects' },
                 schema: doc.schema,
               }),
             }
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
     let similarity: SimilarityResult | null = null;
     try {
       const similarityResponse = await fetch(
-        `${DATA_API_URL}/data/graph/compute-similarities?label=StatusProject&threshold=0.3`,
+        `${DATA_API_URL}/data/graph/compute-similarities?label=StatusProject&threshold=0.05`,
         {
           method: 'POST',
           headers: {

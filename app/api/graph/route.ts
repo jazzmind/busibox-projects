@@ -4,7 +4,7 @@
  * GET: Get graph visualization data (nodes + edges) from the data-api
  * 
  * Proxies to data-api /data/graph with Zero Trust token exchange.
- * Automatically filters to status-report node types unless a label
+ * Automatically filters to busibox-projects node types unless a label
  * parameter is explicitly provided.
  * 
  * Supports query parameters: center, label, depth, limit
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    // Filter to only status-report node types (exclude ingested document entities)
+    // Filter to only busibox-projects node types (exclude ingested document entities)
     if (!searchParams.has('label')) {
       searchParams.set('label', 'StatusProject,StatusTask,StatusUpdate');
     }

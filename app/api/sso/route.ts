@@ -16,12 +16,12 @@ const verbose = process.env.VERBOSE_AUTH_LOGGING === 'true';
 
 const handleGet = createSSOGetHandler(NextResponse, { 
   verbose,
-  defaultAppName: 'app-template',
+  defaultAppName: 'busibox-template',
 });
 
 const handlePost = createSSOPostHandler(NextResponse, { 
   verbose,
-  defaultAppName: 'app-template',
+  defaultAppName: 'busibox-template',
 });
 
 export async function GET(request: NextRequest) {

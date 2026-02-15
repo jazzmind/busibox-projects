@@ -1,5 +1,5 @@
 /**
- * Data API Client for Status Report App
+ * Data API Client for Busibox Projects (AI Initiative Status)
  *
  * Provides typed CRUD operations for projects, tasks, and status updates
  * using the Busibox data-api service. Uses shared client from @jazzmind/busibox-app.
@@ -32,9 +32,9 @@ import type { QueryFilter } from '@jazzmind/busibox-app';
 // ==========================================================================
 
 export const DOCUMENTS = {
-  PROJECTS: 'status-report-projects',
-  TASKS: 'status-report-tasks',
-  UPDATES: 'status-report-updates',
+  PROJECTS: 'busibox-projects-projects',
+  TASKS: 'busibox-projects-tasks',
+  UPDATES: 'busibox-projects-updates',
 } as const;
 
 // ==========================================================================
@@ -71,7 +71,7 @@ export const projectSchema: AppDataSchema = {
   },
   displayName: 'Projects',
   itemLabel: 'Project',
-  sourceApp: 'status-report',
+  sourceApp: 'busibox-projects',
   visibility: 'personal',
   allowSharing: true,
   graphNode: 'StatusProject',
@@ -120,7 +120,7 @@ export const taskSchema: AppDataSchema = {
   },
   displayName: 'Tasks',
   itemLabel: 'Task',
-  sourceApp: 'status-report',
+  sourceApp: 'busibox-projects',
   visibility: 'personal',
   allowSharing: true,
   graphNode: 'StatusTask',
@@ -163,7 +163,7 @@ export const updateSchema: AppDataSchema = {
   },
   displayName: 'Status Updates',
   itemLabel: 'Update',
-  sourceApp: 'status-report',
+  sourceApp: 'busibox-projects',
   visibility: 'personal',
   allowSharing: true,
   graphNode: 'StatusUpdate',
@@ -214,7 +214,7 @@ export async function ensureDataDocuments(token: string): Promise<{
         visibility: 'personal',
       },
     },
-    'status-report'
+    'busibox-projects'
   );
   return ids as { projects: string; tasks: string; updates: string };
 }

@@ -75,7 +75,7 @@ Deploy via Busibox Ansible:
 
 ```bash
 # From busibox/provision/ansible
-make install SERVICE=status-report
+make install SERVICE=busibox-projects
 ```
 
 ## Development

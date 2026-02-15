@@ -2,7 +2,7 @@
  * Agent API Client utilities
  * 
  * Provides helper functions for connecting to the agent-api service.
- * Based on agent-manager's implementation.
+ * Based on busibox-agents's implementation.
  */
 
 /**

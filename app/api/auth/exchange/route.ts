@@ -4,8 +4,8 @@ import { cookies } from 'next/headers';
 /**
  * POST /api/auth/exchange
  * 
- * Exchange an SSO token from ai-portal for a session.
- * This endpoint receives the JWT token from ai-portal and stores it
+ * Exchange an SSO token from portal for a session.
+ * This endpoint receives the JWT token from portal and stores it
  * in an httpOnly cookie for subsequent API requests.
  * 
  * IMPORTANT: We only set app-specific cookies here, NOT busibox-session.

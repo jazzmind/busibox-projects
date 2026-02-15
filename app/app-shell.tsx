@@ -150,7 +150,7 @@ function normalizePortalUrl(raw: string): string {
 
 export function AppShell({ children, basePath }: { children: React.ReactNode; basePath: string }) {
   const rawPortalUrl = process.env.NEXT_PUBLIC_AI_PORTAL_URL || '';
-  const appId = process.env.APP_NAME || 'status-report';
+  const appId = process.env.APP_NAME || 'busibox-projects';
   
   return (
     <AuthProvider

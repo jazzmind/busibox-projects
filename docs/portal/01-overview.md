@@ -1,16 +1,16 @@
 ---
-title: "Status Report Overview"
+title: "AI Initiative Status Overview"
 category: "apps"
 order: 1
 description: "Track and visualize AI initiative status with intelligent conversational updates"
 published: true
-app_id: "status-report"
-app_name: "Status Report"
+app_id: "busibox-projects"
+app_name: "AI Initiative Status"
 ---
 
-# Status Report
+# AI Initiative Status
 
-Status Report is a project tracking application that combines visual dashboards with AI-powered status updates. Instead of filling out forms, you have a conversation with an AI agent that asks about your progress, updates tasks, and records status changes.
+AI Initiative Status is a project tracking application that combines visual dashboards with AI-powered status updates. Instead of filling out forms, you have a conversation with an AI agent that asks about your progress, updates tasks, and records status changes.
 
 ## Key Features
 
@@ -23,7 +23,7 @@ Status Report is a project tracking application that combines visual dashboards 
 
 ### Data Storage
 
-Status Report stores all data through the Busibox data-api using three document collections:
+AI Initiative Status stores all data through the Busibox data-api using three document collections:
 
 - **Projects**: Name, description, status (on-track/at-risk/off-track/completed/paused), progress tracking, checkpoints
 - **Tasks**: Title, status (todo/in-progress/blocked/done), assignee, priority, due date
@@ -38,7 +38,7 @@ Two custom agents power the intelligent interactions:
 
 ## Getting Started
 
-1. Open the AI Portal and navigate to Status Report
+1. Open the AI Portal and navigate to AI Initiative Status
 2. The app automatically initializes its data documents on first access
 3. Create your first project from the dashboard
 4. Add tasks to track work items

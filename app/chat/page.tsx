@@ -158,7 +158,7 @@ Try pasting your meeting notes, or ask me anything!`;
               onResponseReceived={(response) => {
                 console.log('Response received:', response.substring(0, 100));
               }}
-              {...{ metadata: { appName: 'status-report' } } as any}
+              {...{ metadata: { appName: 'busibox-projects' } } as any}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
