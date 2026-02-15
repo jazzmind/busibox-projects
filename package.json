@@ -16,7 +16,7 @@
     "unlink:busibox": "./scripts/unlink-local-busibox.sh"
   },
   "dependencies": {
-    "@jazzmind/busibox-app": "^2.1.59",
+    "@jazzmind/busibox-app": "^2.1.60",
     "clsx": "^2.1.1",
     "d3-force": "^3.0.0",
     "jose": "^6.1.2",

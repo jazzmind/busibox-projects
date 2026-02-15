@@ -325,6 +325,7 @@ export default function DashboardPage() {
                 recentUpdate={project.recentUpdates[0] || null}
                 onUpdateClick={handleUpdateClick}
                 onDelete={handleDeleteProject}
+                users={users}
               />
             ))}
           </div>

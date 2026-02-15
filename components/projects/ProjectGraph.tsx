@@ -577,16 +577,6 @@ function DetailPanel({ node, graphData, usersMap, onClose, onNavigate }: DetailP
           </div>
         ) : null}
 
-        {/* Owner + meta (projects) */}
-        {isProject && Boolean((node as unknown as GraphNode).owner) ? (
-          <div className="px-5 pt-2 pb-2">
-            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              <span className="font-medium">Owner:</span>
-              <span className="text-gray-700 dark:text-gray-300">{String((node as unknown as GraphNode).owner)}</span>
-            </div>
-          </div>
-        ) : null}
-
         {/* Navigate button */}
         {(isProject ||
           (entityType === 'StatusTask' && node.projectId) ||

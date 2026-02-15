@@ -12,6 +12,7 @@ import {
   Trash2,
   Edit,
 } from 'lucide-react';
+import { UserAvatar, type UserProfile } from '@jazzmind/busibox-app';
 import { CheckpointProgress } from './ProgressBar';
 import { ProjectStatusBadge } from './StatusBadge';
 import { TaskPreview } from './TaskList';
@@ -26,6 +27,8 @@ interface ProjectCardProps {
   onUpdateClick?: (projectId: string) => void;
   /** Callback when project is deleted */
   onDelete?: (projectId: string) => void;
+  /** Optional user list for resolving owner/assignee IDs to profiles */
+  users?: UserProfile[];
   /** Additional CSS classes */
   className?: string;
 }
@@ -36,6 +39,7 @@ export function ProjectCard({
   recentUpdate,
   onUpdateClick,
   onDelete,
+  users = [],
   className,
 }: ProjectCardProps) {
   // Note: Next.js Link component automatically handles basePath from next.config.ts
@@ -91,25 +95,41 @@ export function ProjectCard({
           <ProjectStatusBadge status={project.status} />
         </div>
 
-        {/* Team & Tags */}
-        {((project.team?.length ?? 0) > 0 || (project.tags?.length ?? 0) > 0) && (
-          <div className="flex flex-wrap gap-2 mt-3">
-            {(project.team?.length ?? 0) > 0 && (
-              <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                <Users className="w-3 h-3" />
-                {project.team!.slice(0, 3).join(', ')}
-                {project.team!.length > 3 && ` +${project.team!.length - 3}`}
+        {/* Owner, Team & Tags */}
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          {project.owner && (() => {
+            const userMap = new Map(users.map((u) => [u.id, u]));
+            const ownerUser = userMap.get(project.owner);
+            return (
+              <span className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                <UserAvatar
+                  size="xs"
+                  name={ownerUser?.displayName}
+                  email={ownerUser?.email || project.owner}
+                  avatarUrl={ownerUser?.avatarUrl}
+                  favoriteColor={ownerUser?.favoriteColor}
+                />
+                <span className="text-gray-700 dark:text-gray-300 font-medium">
+                  {ownerUser?.displayName || ownerUser?.email || project.owner}
+                </span>
               </span>
-            )}
-            {(project.tags?.length ?? 0) > 0 && (
-              <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                <Tag className="w-3 h-3" />
-                {project.tags!.slice(0, 2).join(', ')}
-                {project.tags!.length > 2 && ` +${project.tags!.length - 2}`}
-              </span>
-            )}
-          </div>
-        )}
+            );
+          })()}
+          {(project.team?.length ?? 0) > 0 && (
+            <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+              <Users className="w-3 h-3" />
+              {project.team!.slice(0, 3).join(', ')}
+              {project.team!.length > 3 && ` +${project.team!.length - 3}`}
+            </span>
+          )}
+          {(project.tags?.length ?? 0) > 0 && (
+            <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+              <Tag className="w-3 h-3" />
+              {project.tags!.slice(0, 2).join(', ')}
+              {project.tags!.length > 2 && ` +${project.tags!.length - 2}`}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Progress Section */}
@@ -135,7 +155,7 @@ export function ProjectCard({
             View all
           </Link>
         </div>
-        <TaskPreview tasks={tasks} maxItems={3} />
+        <TaskPreview tasks={tasks} maxItems={3} users={users} />
       </div>
 
       {/* Recent Update Preview */}

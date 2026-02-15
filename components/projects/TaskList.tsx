@@ -199,13 +199,16 @@ export function TaskList({
 interface TaskPreviewProps {
   tasks: Task[];
   maxItems?: number;
+  /** Optional user list for assignee resolution */
+  users?: UserProfile[];
   className?: string;
 }
 
-export function TaskPreview({ tasks, maxItems = 3, className }: TaskPreviewProps) {
+export function TaskPreview({ tasks, maxItems = 3, users = [], className }: TaskPreviewProps) {
   const incompleteTasks = tasks.filter(t => t.status !== 'done');
   const visibleTasks = incompleteTasks.slice(0, maxItems);
   const remaining = incompleteTasks.length - maxItems;
+  const userMap = new Map(users.map((u) => [u.id, u]));
 
   if (incompleteTasks.length === 0) {
     return (
@@ -230,7 +233,16 @@ export function TaskPreview({ tasks, maxItems = 3, className }: TaskPreviewProps
               'bg-gray-400'
             )}
           />
-          <span className="truncate">{task.title}</span>
+          <span className="truncate flex-1">{task.title}</span>
+          {task.assignee && (
+            <UserAvatar
+              size="xs"
+              name={userMap.get(task.assignee)?.displayName}
+              email={userMap.get(task.assignee)?.email || task.assignee}
+              avatarUrl={userMap.get(task.assignee)?.avatarUrl}
+              favoriteColor={userMap.get(task.assignee)?.favoriteColor}
+            />
+          )}
         </div>
       ))}
       {remaining > 0 && (
