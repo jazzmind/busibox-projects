@@ -4,6 +4,9 @@
  * GET: Get graph visualization data (nodes + edges) from the data-api
  * 
  * Proxies to data-api /data/graph with Zero Trust token exchange.
+ * Automatically filters to status-report node types unless a label
+ * parameter is explicitly provided.
+ * 
  * Supports query parameters: center, label, depth, limit
  */
 
@@ -18,10 +21,12 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
+    // Filter to only status-report node types (exclude ingested document entities)
+    if (!searchParams.has('label')) {
+      searchParams.set('label', 'StatusProject,StatusTask,StatusUpdate');
+    }
     const queryString = searchParams.toString();
-    const url = `${DATA_API_URL}/data/graph${queryString ? `?${queryString}` : ''}`;
-
-    console.log('[API/graph] Fetching:', url);
+    const url = `${DATA_API_URL}/data/graph?${queryString}`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -30,49 +35,26 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const responseText = await response.text();
-    console.log('[API/graph] Response status:', response.status, 'body length:', responseText.length);
-
     if (!response.ok) {
-      console.error('[API/graph] Data API error:', response.status, responseText);
-      
-      // If we get a 400 with UUID error, the router ordering fix hasn't been deployed yet
-      if (response.status === 400 && responseText.includes('UUID')) {
-        console.error('[API/graph] Router ordering issue - /data/graph being caught by /data/{document_id}. Deploy data-api with updated main.py.');
+      const text = await response.text();
+      // Router ordering issue fallback
+      if (response.status === 400 && text.includes('UUID')) {
         return NextResponse.json({
           nodes: [],
           edges: [],
           total_nodes: 0,
           total_edges: 0,
           graph_available: false,
-          error: 'Graph API routing issue. The data-api needs to be redeployed with the router ordering fix.',
+          error: 'Graph API routing issue - data-api needs redeployment.',
         });
       }
-      
       return NextResponse.json(
-        { error: 'Failed to get graph data', detail: responseText },
+        { error: 'Failed to get graph data', detail: text },
         { status: response.status }
       );
     }
 
-    // Parse and log summary
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch {
-      console.error('[API/graph] Failed to parse response:', responseText.substring(0, 200));
-      return NextResponse.json(
-        { error: 'Invalid response from graph API' },
-        { status: 502 }
-      );
-    }
-
-    console.log('[API/graph] Result:', {
-      graph_available: data.graph_available,
-      nodes: data.nodes?.length ?? 0,
-      edges: data.edges?.length ?? 0,
-    });
-
+    const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
     console.error('[API/graph] Error:', error);

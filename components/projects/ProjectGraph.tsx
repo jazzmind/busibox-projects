@@ -33,14 +33,17 @@ const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false 
 
 interface GraphNode {
   node_id: string;
-  name: string;
+  name?: string;
+  title?: string; // Tasks use title instead of name
   entity_type?: string;
   labels?: string[];
+  _labels?: string[]; // Neo4j labels returned by backend
   // Domain fields that may come from Neo4j properties
   status?: string;
   priority?: string;
   progress?: number;
   projectId?: string;
+  description?: string;
   [key: string]: unknown;
   // Force-graph internal
   x?: number;
@@ -53,6 +56,7 @@ interface GraphEdge {
   type: string;
   from: string;
   to: string;
+  similarity_score?: number;
 }
 
 interface GraphData {
@@ -82,6 +86,7 @@ interface ForceGraphLink {
   source: string;
   target: string;
   label: string;
+  similarityScore?: number;
 }
 
 interface ForceGraphData {
@@ -120,15 +125,25 @@ const ENTITY_TYPE_COLORS: Record<string, string> = {
 
 /** Entity type → node size multiplier */
 const NODE_SIZES: Record<string, number> = {
-  StatusProject: 6,
-  StatusTask: 3,
-  StatusUpdate: 1.5,
+  StatusProject: 10,
+  StatusTask: 5,
+  StatusUpdate: 3,
 };
 
+function getEntityType(node: GraphNode): string {
+  // Check explicit entity_type property first
+  if (node.entity_type) return node.entity_type;
+  // Check Neo4j labels (_labels from backend, or labels)
+  const allLabels = node._labels || node.labels || [];
+  const domainLabel = allLabels.find(
+    (l: string) => l !== 'GraphNode' && l !== 'Entity'
+  );
+  if (domainLabel) return domainLabel;
+  return 'Unknown';
+}
+
 function getNodeColor(node: GraphNode): string {
-  const entityType = node.entity_type ||
-    (node.labels && node.labels.find(l => l !== 'GraphNode' && l !== 'Entity')) ||
-    'Default';
+  const entityType = getEntityType(node);
 
   // Use status-aware colors for projects and tasks
   if (entityType === 'StatusProject' && node.status) {
@@ -141,15 +156,18 @@ function getNodeColor(node: GraphNode): string {
   return ENTITY_TYPE_COLORS[entityType] || ENTITY_TYPE_COLORS.Default;
 }
 
-function getEntityType(node: GraphNode): string {
-  return node.entity_type ||
-    (node.labels && node.labels.find(l => l !== 'GraphNode' && l !== 'Entity')) ||
-    'Unknown';
-}
-
 function getNodeSize(node: GraphNode): number {
   const entityType = getEntityType(node);
   return NODE_SIZES[entityType] || 2;
+}
+
+/** Get the best display name for a node */
+function getDisplayName(node: GraphNode): string {
+  // Tasks use "title" not "name"
+  if (node.title) return node.title;
+  if (node.name) return node.name;
+  // Fallback to friendly type for nodes without a name
+  return getFriendlyType(node);
 }
 
 /** Friendly label for entity types */
@@ -157,6 +175,7 @@ const ENTITY_LABELS: Record<string, string> = {
   StatusProject: 'Project',
   StatusTask: 'Task',
   StatusUpdate: 'Update',
+  DataDocument: 'Document',
 };
 
 function getFriendlyType(node: GraphNode): string {
@@ -221,12 +240,16 @@ export function ProjectGraph() {
         return;
       }
 
-      // Convert to force-graph format
+      // Convert to force-graph format, filtering out DataDocument container nodes
       const nodeMap = new Map<string, ForceGraphNode>();
       for (const node of data.nodes) {
+        const entityType = getEntityType(node);
+        // Skip DataDocument nodes (they're internal containers, not meaningful to users)
+        if (entityType === 'DataDocument') continue;
         nodeMap.set(node.node_id, {
           ...node,
           id: node.node_id,
+          name: getDisplayName(node),
           val: getNodeSize(node),
           color: getNodeColor(node),
         });
@@ -238,6 +261,7 @@ export function ProjectGraph() {
           source: edge.from,
           target: edge.to,
           label: edge.type,
+          similarityScore: typeof edge.similarity_score === 'number' ? edge.similarity_score : undefined,
         }));
 
       setGraphData({
@@ -292,9 +316,12 @@ export function ProjectGraph() {
 
         for (const neighbor of neighbors) {
           if (!existingIds.has(neighbor.node_id)) {
+            const entityType = getEntityType(neighbor);
+            if (entityType === 'DataDocument') continue; // Skip container nodes
             newNodes.push({
               ...neighbor,
               id: neighbor.node_id,
+              name: getDisplayName(neighbor),
               val: getNodeSize(neighbor),
               color: getNodeColor(neighbor),
             });
@@ -384,7 +411,10 @@ export function ProjectGraph() {
     const query = searchQuery.toLowerCase();
     const matchingNodeIds = new Set(
       graphData.nodes
-        .filter(n => (n.name || '').toLowerCase().includes(query))
+        .filter(n => {
+          const searchable = `${n.name || ''} ${(n as GraphNode).title || ''} ${(n as GraphNode).description || ''}`.toLowerCase();
+          return searchable.includes(query);
+        })
         .map(n => n.id)
     );
 
@@ -405,7 +435,7 @@ export function ProjectGraph() {
   const nodeCanvasObject = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-      const label = node.name || node.id || '';
+      const label = node.name || node.title || getFriendlyType(node);
       const entityType = getEntityType(node);
       const fontSize = Math.max(10 / globalScale, 2);
       const baseRadius = Math.max(5 * Math.sqrt(node.val || 1), 3);
@@ -490,6 +520,54 @@ export function ProjectGraph() {
     window.addEventListener('resize', updateDimensions);
     return () => window.removeEventListener('resize', updateDimensions);
   }, []);
+
+  // Tune force simulation for readability:
+  // - Keep projects closer to each other
+  // - Push tasks/updates farther from project hubs
+  // - Add collision force to reduce label overlap
+  useEffect(() => {
+    if (!graphRef.current || filteredData.nodes.length === 0) return;
+
+    const tuneForces = async () => {
+      const graph = graphRef.current;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const linkForce: any = graph.d3Force('link');
+      if (linkForce && typeof linkForce.distance === 'function') {
+        linkForce.distance((link: ForceGraphLink) => {
+          if (link.label === 'BELONGS_TO') return 130;
+          if (link.label === 'SIMILAR_TO') return 170;
+          return 85;
+        });
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const chargeForce: any = graph.d3Force('charge');
+      if (chargeForce && typeof chargeForce.strength === 'function') {
+        chargeForce.strength(-90);
+      }
+
+      // d3-force is loaded at runtime to avoid static typing friction here
+      const d3 = (await import('d3-force')) as unknown as {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        forceCollide: (radius: (node: any) => number) => any;
+      };
+      graph.d3Force(
+        'collision',
+        d3.forceCollide((node: ForceGraphNode) => {
+          const type = getEntityType(node);
+          if (type === 'StatusProject') return 42;
+          if (type === 'StatusTask') return 28;
+          if (type === 'StatusUpdate') return 22;
+          return 20;
+        })
+      );
+
+      graph.d3ReheatSimulation();
+    };
+
+    void tuneForces();
+  }, [filteredData.nodes.length, filteredData.links.length]);
 
   // ==========================================================================
   // Summary counts
@@ -638,11 +716,11 @@ export function ProjectGraph() {
       </div>
 
       {/* Graph + Detail Panel */}
-      <div className="flex gap-3">
+      <div className="relative">
         {/* Graph Canvas */}
         <div
           ref={containerRef}
-          className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+          className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
           style={{ minHeight: 600 }}
         >
           <ForceGraph2D
@@ -650,7 +728,7 @@ export function ProjectGraph() {
             graphData={filteredData}
             nodeId="id"
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            nodeLabel={(node: any) => `${node.name || node.id} (${getFriendlyType(node)})`}
+            nodeLabel={(node: any) => `${node.name || node.title || node.id} (${getFriendlyType(node)})`}
             nodeCanvasObject={nodeCanvasObject}
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
@@ -662,16 +740,25 @@ export function ProjectGraph() {
             }}
             linkDirectionalArrowLength={4}
             linkDirectionalArrowRelPos={1}
-            linkColor={() => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            linkColor={(link: any) => {
+              if (link.label === 'SIMILAR_TO') return '#a855f7';
               const isDark = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
               return isDark ? '#4b5563' : '#d1d5db';
             }}
-            linkWidth={0.8}
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            linkLabel={(link: any) => link.label}
+            linkWidth={(link: any) => (link.label === 'SIMILAR_TO' ? 1.6 : 0.8)}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            linkLineDash={(link: any) => (link.label === 'SIMILAR_TO' ? [6, 3] : null)}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            linkLabel={(link: any) =>
+              link.label === 'SIMILAR_TO' && typeof link.similarityScore === 'number'
+                ? `${link.label} (${Math.round(link.similarityScore * 100)}%)`
+                : link.label
+            }
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onNodeClick={(node: any) => handleNodeClick(node as ForceGraphNode)}
-            width={selectedNode ? dimensions.width - 340 : dimensions.width}
+            width={dimensions.width}
             height={dimensions.height}
             cooldownTicks={100}
             d3AlphaDecay={0.02}
@@ -687,7 +774,7 @@ export function ProjectGraph() {
 
         {/* Detail Panel */}
         {selectedNode && (
-          <div className="w-80 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 max-h-[700px] overflow-y-auto flex-shrink-0">
+          <div className="absolute top-4 right-4 z-10 w-80 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 max-h-[700px] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <EntityIcon type={getEntityType(selectedNode)} className="w-4 h-4 text-gray-500" />
@@ -708,9 +795,19 @@ export function ProjectGraph() {
               <div>
                 <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Name</span>
                 <p className="text-sm text-gray-900 dark:text-gray-100 font-medium mt-0.5">
-                  {selectedNode.name || selectedNode.id}
+                  {selectedNode.name || (selectedNode as unknown as GraphNode).title || selectedNode.id}
                 </p>
               </div>
+
+              {/* Description */}
+              {(selectedNode as unknown as GraphNode).description && (
+                <div>
+                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Description</span>
+                  <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5 line-clamp-3">
+                    {(selectedNode as unknown as GraphNode).description}
+                  </p>
+                </div>
+              )}
 
               {/* Status */}
               {selectedNode.status && (
@@ -783,7 +880,12 @@ export function ProjectGraph() {
                           <ChevronRight
                             className={`w-3 h-3 text-gray-400 ${!isOutgoing ? 'rotate-180' : ''}`}
                           />
-                          <span className="text-gray-500 dark:text-gray-400 font-mono">{link.label}</span>
+                          <span className="text-gray-500 dark:text-gray-400 font-mono">
+                            {link.label}
+                            {link.label === 'SIMILAR_TO' && typeof link.similarityScore === 'number'
+                              ? ` (${Math.round(link.similarityScore * 100)}%)`
+                              : ''}
+                          </span>
                           <span className="text-gray-400">→</span>
                           <button
                             onClick={() => {
@@ -792,7 +894,7 @@ export function ProjectGraph() {
                             }}
                             className="text-blue-600 dark:text-blue-400 hover:underline truncate"
                           >
-                            {otherNode?.name || otherId}
+                            {otherNode?.name || (otherNode as unknown as GraphNode)?.title || otherId}
                           </button>
                         </div>
                       );
@@ -839,6 +941,11 @@ export function ProjectGraph() {
           <span className="inline-flex items-center gap-1">
             <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: ENTITY_TYPE_COLORS.StatusUpdate }} />
             Updates
+          </span>
+          <span className="text-gray-300 dark:text-gray-600">|</span>
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block w-5 h-0.5 border-t-2 border-dashed border-violet-500" />
+            Similarity Links
           </span>
           <span className="ml-auto text-gray-400 dark:text-gray-500">Click nodes to expand | Scroll to zoom | Drag to pan</span>
         </div>

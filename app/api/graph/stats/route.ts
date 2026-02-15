@@ -16,24 +16,17 @@ export async function GET(request: NextRequest) {
   if (auth instanceof NextResponse) return auth;
 
   try {
-    const url = `${DATA_API_URL}/data/graph/stats`;
-    console.log('[API/graph/stats] Fetching:', url);
-
-    const response = await fetch(url, {
+    const response = await fetch(`${DATA_API_URL}/data/graph/stats`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${auth.apiToken}`,
       },
     });
 
-    const responseText = await response.text();
-    console.log('[API/graph/stats] Response status:', response.status, 'body:', responseText.substring(0, 300));
-
     if (!response.ok) {
-      console.error('[API/graph/stats] Data API error:', response.status, responseText);
-      
-      // If we get a 400 with UUID error, the router ordering fix hasn't been deployed yet
-      if (response.status === 400 && responseText.includes('UUID')) {
+      const text = await response.text();
+      // Router ordering issue fallback
+      if (response.status === 400 && text.includes('UUID')) {
         return NextResponse.json({
           available: false,
           total_nodes: 0,
@@ -42,24 +35,13 @@ export async function GET(request: NextRequest) {
           relationship_types: {},
         });
       }
-      
       return NextResponse.json(
-        { error: 'Failed to get graph stats', detail: responseText },
+        { error: 'Failed to get graph stats', detail: text },
         { status: response.status }
       );
     }
 
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch {
-      return NextResponse.json(
-        { error: 'Invalid response from graph stats API' },
-        { status: 502 }
-      );
-    }
-
-    console.log('[API/graph/stats] Result:', data);
+    const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
     console.error('[API/graph/stats] Error:', error);
