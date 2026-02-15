@@ -68,6 +68,7 @@ export interface Project {
   owner?: string;
   team: string[];
   tags: string[];
+  leadImage?: string; // URL to AI-generated project lead image
   createdAt: string;
   updatedAt: string;
 }
@@ -83,6 +84,7 @@ export interface CreateProjectInput {
   owner?: string;
   team?: string[];
   tags?: string[];
+  leadImage?: string;
 }
 
 export interface UpdateProjectInput {
@@ -96,6 +98,7 @@ export interface UpdateProjectInput {
   owner?: string;
   team?: string[];
   tags?: string[];
+  leadImage?: string;
 }
 
 // ==========================================================================

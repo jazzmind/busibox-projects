@@ -16,6 +16,8 @@ import {
   AlertCircle,
   MoreVertical,
   Loader2,
+  Sparkles,
+  ImageIcon,
 } from 'lucide-react';
 import { cn } from '@jazzmind/busibox-app/lib/utils';
 import { UserAvatar, UserPicker, type UserProfile } from '@jazzmind/busibox-app';
@@ -25,9 +27,11 @@ import {
   TaskPriorityBadge,
   CheckpointProgress,
   StatusTimeline,
+  EditProjectModal,
+  EditTaskModal,
 } from '@/components/projects';
 import { useAuth } from '@jazzmind/busibox-app';
-import type { Project, Task, StatusUpdate, TaskStatus } from '@/lib/types';
+import type { Project, Task, StatusUpdate, TaskStatus, UpdateProjectInput, UpdateTaskInput } from '@/lib/types';
 
 interface ProjectDetailData {
   project: Project;
@@ -57,9 +61,16 @@ export default function ProjectDetailPage({ params }: PageProps) {
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
-    priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
+    priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
     assignee: '',
   });
+
+  // Edit modal state
+  const [showEditProjectModal, setShowEditProjectModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+
+  // Image generation state
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 
   const fetchProject = async () => {
     try {
@@ -261,6 +272,58 @@ export default function ProjectDetailPage({ params }: PageProps) {
     }
   };
 
+  const handleEditProject = async (updates: UpdateProjectInput) => {
+    if (!data) return;
+    const response = await fetch(`${basePath}/api/projects/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to update project');
+    }
+    const updated = await response.json();
+    setData({ ...data, project: updated });
+  };
+
+  const handleEditTask = async (taskId: string, updates: UpdateTaskInput) => {
+    if (!data) return;
+    const response = await fetch(`${basePath}/api/tasks/${taskId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to update task');
+    }
+    const updated = await response.json();
+    setData({
+      ...data,
+      tasks: data.tasks.map((t) => (t.id === taskId ? updated : t)),
+    });
+  };
+
+  const handleGenerateImage = async () => {
+    if (!data) return;
+    setIsGeneratingImage(true);
+    try {
+      const response = await fetch(`${basePath}/api/projects/${id}/generate-image`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('[GenerateImage] Failed:', err);
+        return;
+      }
+      const updated = await response.json();
+      setData({ ...data, project: updated });
+    } catch (err) {
+      console.error('[GenerateImage] Error:', err);
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
   const statusIcons: Record<TaskStatus, typeof Circle> = {
     'todo': Circle,
     'in-progress': Clock,
@@ -320,6 +383,31 @@ export default function ProjectDetailPage({ params }: PageProps) {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        {/* Lead image banner */}
+        {project.leadImage && (
+          <div className="relative h-48 overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={project.leadImage}
+              alt={`${project.name} lead image`}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-white/80 dark:from-gray-800/80 to-transparent" />
+            <button
+              onClick={handleGenerateImage}
+              disabled={isGeneratingImage}
+              className="absolute top-3 right-3 p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+              title="Regenerate image"
+            >
+              {isGeneratingImage ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Sparkles className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+        )}
+
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {/* Back link */}
           <Link
@@ -344,6 +432,24 @@ export default function ProjectDetailPage({ params }: PageProps) {
                   {project.description}
                 </p>
               )}
+              {/* Owner */}
+              {project.owner && (() => {
+                const ownerUser = userMap.get(project.owner);
+                return (
+                  <div className="flex items-center gap-2 mt-3">
+                    <UserAvatar
+                      size="sm"
+                      name={ownerUser?.displayName}
+                      email={ownerUser?.email || project.owner}
+                      avatarUrl={ownerUser?.avatarUrl}
+                      favoriteColor={ownerUser?.favoriteColor}
+                    />
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      {ownerUser?.displayName || ownerUser?.email || project.owner}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -354,11 +460,26 @@ export default function ProjectDetailPage({ params }: PageProps) {
                 <RefreshCw className="w-5 h-5" />
               </button>
               <button 
+                onClick={() => setShowEditProjectModal(true)}
                 className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
                 title="Edit project"
               >
                 <Edit className="w-5 h-5" />
               </button>
+              {!project.leadImage && (
+                <button
+                  onClick={handleGenerateImage}
+                  disabled={isGeneratingImage}
+                  className="p-2 text-gray-400 hover:text-violet-500 dark:hover:text-violet-400 rounded-lg hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors disabled:opacity-50"
+                  title="Generate lead image"
+                >
+                  {isGeneratingImage ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <ImageIcon className="w-5 h-5" />
+                  )}
+                </button>
+              )}
               <button
                 onClick={handleDeleteProject}
                 disabled={isDeletingProject}
@@ -461,6 +582,16 @@ export default function ProjectDetailPage({ params }: PageProps) {
                                 />
                                 <div className="absolute right-0 top-full mt-1 w-36 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
                                   <button
+                                    onClick={() => {
+                                      setTaskMenuOpen(null);
+                                      setEditingTask(task);
+                                    }}
+                                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                    Edit Task
+                                  </button>
+                                  <button
                                     onClick={() => handleDeleteTask(task.id, task.title)}
                                     className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                                   >
@@ -545,6 +676,26 @@ export default function ProjectDetailPage({ params }: PageProps) {
         </div>
       </div>
 
+      {/* Edit Project Modal */}
+      {showEditProjectModal && data && (
+        <EditProjectModal
+          project={data.project}
+          users={users}
+          onClose={() => setShowEditProjectModal(false)}
+          onSave={handleEditProject}
+        />
+      )}
+
+      {/* Edit Task Modal */}
+      {editingTask && (
+        <EditTaskModal
+          task={editingTask}
+          users={users}
+          onClose={() => setEditingTask(null)}
+          onSave={handleEditTask}
+        />
+      )}
+
       {/* New Task Modal */}
       {showNewTaskModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -588,13 +739,13 @@ export default function ProjectDetailPage({ params }: PageProps) {
                   </label>
                   <select
                     value={newTask.priority}
-                    onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent' })}
+                    onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as 'low' | 'medium' | 'high' | 'critical' })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
                     <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
+                    <option value="critical">Critical</option>
                   </select>
                 </div>
 

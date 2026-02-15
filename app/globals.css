@@ -69,3 +69,13 @@ body.hide-footer [data-version-bar] {
   from { transform: scale(0); }
   to   { transform: scale(1); }
 }
+
+/* Star twinkle animation for graph background */
+@keyframes twinkle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.animate-twinkle {
+  animation: twinkle 4s ease-in-out infinite;
+}

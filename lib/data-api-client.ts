@@ -66,6 +66,7 @@ export const projectSchema: AppDataSchema = {
     owner: { type: 'string', label: 'Owner', order: 8 },
     team: { type: 'array', label: 'Team Members', widget: 'tags', readonly: true, order: 9 },
     tags: { type: 'array', label: 'Tags', widget: 'tags', readonly: true, order: 10 },
+    leadImage: { type: 'string', label: 'Lead Image', hidden: true, order: 11 },
     createdAt: { type: 'string', label: 'Created', readonly: true, hidden: true },
     updatedAt: { type: 'string', label: 'Updated', readonly: true, hidden: true },
   },

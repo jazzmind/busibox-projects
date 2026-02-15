@@ -73,6 +73,19 @@ export function ProjectCard({
         className
       )}
     >
+      {/* Lead image banner */}
+      {project.leadImage && (
+        <div className="relative h-24 overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={project.leadImage}
+            alt=""
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-white dark:from-gray-800 to-transparent" />
+        </div>
+      )}
+
       {/* Header */}
       <div className="px-4 pt-4 pb-3">
         <div className="flex items-start justify-between gap-3">

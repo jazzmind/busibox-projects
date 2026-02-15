@@ -57,6 +57,11 @@ function AppShellContent({ children, basePath }: { children: React.ReactNode; ba
           email: authState.user.email,
           status: 'ACTIVE',
           roles: authState.user.roles,
+          displayName: authState.user.displayName,
+          firstName: authState.user.firstName,
+          lastName: authState.user.lastName,
+          avatarUrl: authState.user.avatarUrl,
+          favoriteColor: authState.user.favoriteColor,
         },
         isAuthenticated: true,
       });

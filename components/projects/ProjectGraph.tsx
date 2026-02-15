@@ -24,6 +24,7 @@ import {
   FolderKanban, CheckSquare, FileText, ExternalLink,
   Play, Pause,
 } from 'lucide-react';
+import { GraphBackground } from './GraphBackground';
 // Status types are used implicitly via the color maps below
 
 // Dynamic import to avoid SSR issues with canvas
@@ -347,11 +348,23 @@ function DetailPanel({ node, graphData, usersMap, onClose, onNavigate }: DetailP
 
   return (
     <div className="absolute top-4 right-4 z-10 w-96 animate-[slide-in_0.35s_ease-out] overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
-      {/* Header — colored banner */}
+      {/* Header — colored banner with optional lead image */}
       <div
         className="px-5 py-4 text-white relative overflow-hidden"
         style={{ backgroundColor: node.color || '#6b7280' }}
       >
+        {/* Lead image background (projects only) */}
+        {isProject && Boolean((node as unknown as GraphNode).leadImage) && (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={String((node as unknown as GraphNode).leadImage)}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-black/40" />
+          </>
+        )}
         {/* Subtle gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-black/10" />
         <div className="relative">
@@ -848,6 +861,62 @@ export function ProjectGraph() {
   }, [graphData, searchQuery]);
 
   // ==========================================================================
+  // Canvas Rendering — avatar helpers
+  // ==========================================================================
+
+  // Image cache for avatar URLs (persists across renders)
+  const avatarImageCache = useRef<Map<string, HTMLImageElement | 'loading' | 'error'>>(new Map());
+
+  function getAvatarImage(url: string): HTMLImageElement | null {
+    const cached = avatarImageCache.current.get(url);
+    if (cached === 'loading' || cached === 'error') return null;
+    if (cached) return cached;
+
+    // Start loading
+    avatarImageCache.current.set(url, 'loading');
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      avatarImageCache.current.set(url, img);
+      // Force re-render by triggering a graph tick
+      graphRef.current?.d3ReheatSimulation?.();
+    };
+    img.onerror = () => {
+      avatarImageCache.current.set(url, 'error');
+    };
+    img.src = url;
+    return null;
+  }
+
+  // Simple initials builder (mirrors busibox-app UserAvatar logic)
+  function buildInitials(name?: string, email?: string): string {
+    if (name && name.trim()) {
+      const parts = name.trim().split(/\s+/).filter(Boolean);
+      if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+      return parts[0]?.[0]?.toUpperCase() || 'U';
+    }
+    const fallback = (email || '').split('@')[0];
+    const emailParts = fallback.split(/[._-]/).filter(Boolean);
+    if (emailParts.length >= 2) return `${emailParts[0][0]}${emailParts[1][0]}`.toUpperCase();
+    return fallback.slice(0, 2).toUpperCase() || 'U';
+  }
+
+  // Gradient palette for initials fallback (matches busibox-app)
+  const AVATAR_COLORS = [
+    '#3b82f6', '#10b981', '#f97316', '#06b6d4', '#d946ef',
+    '#84cc16', '#f43f5e', '#6366f1', '#f59e0b', '#64748b',
+  ];
+
+  function stringHash(value: string): number {
+    let hash = 0;
+    for (let i = 0; i < value.length; i++) {
+      hash = (hash << 5) - hash + value.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash);
+  }
+
+  // ==========================================================================
   // Canvas Rendering
   // ==========================================================================
 
@@ -858,31 +927,82 @@ export function ProjectGraph() {
       const entityType = getEntityType(node);
       const fontSize = Math.max(10 / globalScale, 2);
       const baseRadius = Math.max(5 * Math.sqrt(node.val || 1), 3);
+      const nodeColor = node.color || '#9ca3af';
 
-      // Draw node circle
+      // Determine the relevant user for this node
+      const userId = entityType === 'StatusProject' ? node.owner : node.assignee;
+      const user = userId ? usersMap.get(String(userId)) : undefined;
+
+      // Ring thickness (the status color ring)
+      const ringThickness = Math.max(2.5 / globalScale, 0.8);
+      const avatarRadius = baseRadius * 0.8;
+
+      // 1. Draw status color ring (full circle background)
       ctx.beginPath();
       ctx.arc(node.x, node.y, baseRadius, 0, 2 * Math.PI);
-      ctx.fillStyle = node.color || '#9ca3af';
+      ctx.fillStyle = nodeColor;
       ctx.fill();
 
-      // Projects get a thicker border ring
+      // 2. Draw avatar inside the ring (if user exists)
+      if (user) {
+        const avatarImg = user.avatarUrl ? getAvatarImage(user.avatarUrl) : null;
+
+        ctx.save();
+        // Clip to inner circle
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, avatarRadius, 0, 2 * Math.PI);
+        ctx.clip();
+
+        if (avatarImg) {
+          // Draw avatar image
+          ctx.drawImage(
+            avatarImg,
+            node.x - avatarRadius,
+            node.y - avatarRadius,
+            avatarRadius * 2,
+            avatarRadius * 2
+          );
+        } else {
+          // Draw initials circle
+          const seed = user.email || user.displayName || userId;
+          const bgColor = user.favoriteColor || AVATAR_COLORS[stringHash(seed) % AVATAR_COLORS.length];
+          ctx.fillStyle = bgColor;
+          ctx.fill();
+
+          // Draw initials text
+          const initials = buildInitials(user.displayName, user.email);
+          const initialsFontSize = Math.max(avatarRadius * 0.9, 2);
+          ctx.font = `bold ${initialsFontSize}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(initials, node.x, node.y);
+        }
+        ctx.restore();
+      }
+
+      // 3. Thicker border ring for projects (on top of avatar)
       if (entityType === 'StatusProject') {
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-        ctx.lineWidth = 2 / globalScale;
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, baseRadius, 0, 2 * Math.PI);
+        ctx.strokeStyle = nodeColor;
+        ctx.lineWidth = ringThickness;
         ctx.stroke();
       }
 
-      // Highlight if selected
+      // 4. Highlight if selected
       if (selectedNode && node.id === selectedNode.id) {
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, baseRadius + 1 / globalScale, 0, 2 * Math.PI);
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 3 / globalScale;
         ctx.stroke();
-        ctx.strokeStyle = node.color || '#9ca3af';
+        ctx.strokeStyle = nodeColor;
         ctx.lineWidth = 1.5 / globalScale;
         ctx.stroke();
       }
 
-      // Draw progress ring for projects
+      // 5. Draw progress ring for projects
       if (entityType === 'StatusProject' && typeof node.progress === 'number') {
         const progress = node.progress / 100;
         const ringRadius = baseRadius + 3 / globalScale;
@@ -893,7 +1013,7 @@ export function ProjectGraph() {
         ctx.stroke();
       }
 
-      // Draw label if zoomed in enough
+      // 6. Draw label if zoomed in enough
       if (globalScale > 0.5) {
         const maxChars = globalScale > 2 ? 30 : globalScale > 1 ? 20 : 12;
         const displayLabel = label.length > maxChars ? label.substring(0, maxChars) + '...' : label;
@@ -918,7 +1038,7 @@ export function ProjectGraph() {
         ctx.fillText(displayLabel, node.x, node.y + baseRadius + 3);
       }
     },
-    [selectedNode]
+    [selectedNode, usersMap]
   );
 
   // Container dimensions - use simple window-based sizing.
@@ -945,6 +1065,40 @@ export function ProjectGraph() {
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', measure);
+    };
+  }, []);
+
+  // Camera tracking for parallax background
+  const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
+  const cameraRafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    let running = true;
+    const trackCamera = () => {
+      if (!running) return;
+      const graph = graphRef.current;
+      if (graph) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const g = graph as any;
+        const centerAt = g.centerAt?.();
+        const zoom = g.zoom?.();
+        if (centerAt && typeof zoom === 'number') {
+          setCamera(prev => {
+            const nx = centerAt.x ?? 0;
+            const ny = centerAt.y ?? 0;
+            if (Math.abs(prev.x - nx) < 0.5 && Math.abs(prev.y - ny) < 0.5 && Math.abs(prev.zoom - zoom) < 0.01) {
+              return prev;
+            }
+            return { x: nx, y: ny, zoom };
+          });
+        }
+      }
+      cameraRafRef.current = requestAnimationFrame(trackCamera);
+    };
+    cameraRafRef.current = requestAnimationFrame(trackCamera);
+    return () => {
+      running = false;
+      if (cameraRafRef.current) cancelAnimationFrame(cameraRafRef.current);
     };
   }, []);
 
@@ -1245,8 +1399,17 @@ export function ProjectGraph() {
         {/* Graph Canvas */}
         <div
           ref={containerRef}
-          className="w-full h-[70vh] min-h-[600px] bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+          className="w-full h-[70vh] min-h-[600px] rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden relative"
         >
+          {/* Parallax background */}
+          <GraphBackground
+            cameraX={camera.x}
+            cameraY={camera.y}
+            zoom={camera.zoom}
+            width={dimensions.width}
+            height={dimensions.height}
+          />
+          <div className="absolute inset-0 [&>div]:!w-full [&>div]:!h-full">
           <ForceGraph2D
               ref={graphRef}
               graphData={filteredData}
@@ -1295,7 +1458,7 @@ export function ProjectGraph() {
               }}
               backgroundColor="transparent"
             />
-          
+          </div>
         </div>
 
         {/* Detail Panel — animated project dashboard */}

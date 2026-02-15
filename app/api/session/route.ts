@@ -80,6 +80,11 @@ export async function GET(request: NextRequest) {
           email: displayEmail,
           status: 'ACTIVE',
           roles: ssoSession.roles,
+          displayName: ssoSession.displayName,
+          firstName: ssoSession.firstName,
+          lastName: ssoSession.lastName,
+          avatarUrl: ssoSession.avatarUrl,
+          favoriteColor: ssoSession.favoriteColor,
         },
         isAuthenticated: true,
       });
@@ -136,6 +141,11 @@ export async function GET(request: NextRequest) {
             email,
             status: 'ACTIVE',
             roles,
+            displayName: typeof payload.name === 'string' ? payload.name : undefined,
+            firstName: typeof payload.given_name === 'string' ? payload.given_name : undefined,
+            lastName: typeof payload.family_name === 'string' ? payload.family_name : undefined,
+            avatarUrl: typeof payload.picture === 'string' ? payload.picture : undefined,
+            favoriteColor: typeof payload.favorite_color === 'string' ? payload.favorite_color : undefined,
           }
         : null,
       isAuthenticated: Boolean(userId),
