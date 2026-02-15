@@ -171,6 +171,7 @@ export interface CreateStatusUpdateInput {
 // ==========================================================================
 
 export type {
+  UserProfile,
   QueryFilter,
   QueryCondition,
   QueryOptions,

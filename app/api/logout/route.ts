@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
  * Clears app-specific session cookies only.
  * 
  * IMPORTANT: Does NOT clear busibox-session, which is the domain-wide
- * session cookie managed by AI Portal. Clearing that would log the
+ * session cookie managed by Busibox Portal. Clearing that would log the
  * user out of ALL apps, not just this one.
  */
 export async function POST(request: NextRequest) {

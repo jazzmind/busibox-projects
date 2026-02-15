@@ -178,7 +178,7 @@ function main() {
   
   if (!existsSync(manifestPath)) {
     console.error('ERROR: busibox.json not found in project root');
-    console.error('Create a busibox.json file to make this app installable via AI Portal.');
+    console.error('Create a busibox.json file to make this app installable via Busibox Portal.');
     process.exit(1);
   }
   

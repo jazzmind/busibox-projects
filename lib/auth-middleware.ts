@@ -2,7 +2,7 @@
  * Authentication Middleware for Busibox Apps
  *
  * Zero Trust Architecture:
- * - Uses SSO token (session JWT) from AI Portal for token exchange
+ * - Uses SSO token (session JWT) from Busibox Portal for token exchange
  * - NO client credentials required
  * - The session JWT cryptographically proves user identity
  */
@@ -13,7 +13,7 @@ import { getApiToken } from "./authz-client";
 
 // Default audience for API calls - override in your app
 const DEFAULT_AUDIENCE = (process.env.DEFAULT_API_AUDIENCE ||
-  "backend-api") as "agent-api" | "data-api" | "search-api";
+  "backend-api") as "agent-api" | "data-api" | "search-api" | "authz-api";
 
 export interface AuthenticatedRequest {
   ssoToken: string | null;
@@ -37,7 +37,7 @@ export interface AuthenticatedRequest {
  */
 export async function requireAuthWithTokenExchange(
   request: NextRequest,
-  audience?: "agent-api" | "data-api" | "search-api",
+  audience?: "agent-api" | "data-api" | "search-api" | "authz-api",
   scopes?: string[]
 ): Promise<AuthenticatedRequest | NextResponse> {
   try {
@@ -67,7 +67,7 @@ export async function requireAuthWithTokenExchange(
         {
           error: "Authentication required",
           message:
-            "Please log in through the AI Portal and try again. For local testing, set TEST_SESSION_JWT to a valid session JWT.",
+            "Please log in through the Busibox Portal and try again. For local testing, set TEST_SESSION_JWT to a valid session JWT.",
         },
         { status: 401 }
       );
@@ -91,7 +91,7 @@ export async function requireAuthWithTokenExchange(
       {
         error: "Authentication failed",
         message:
-          "Failed to authenticate with the backend service. Please return to the AI Portal and log in again.",
+          "Failed to authenticate with the backend service. Please return to the Busibox Portal and log in again.",
         details: errorMessage,
       },
       { status: 401 }
@@ -111,7 +111,7 @@ export async function requireAuthWithTokenExchange(
  */
 export async function optionalAuth(
   request: NextRequest,
-  audience?: "agent-api" | "data-api" | "search-api",
+  audience?: "agent-api" | "data-api" | "search-api" | "authz-api",
   scopes?: string[]
 ): Promise<AuthenticatedRequest | null> {
   try {

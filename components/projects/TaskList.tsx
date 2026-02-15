@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { cn } from '@jazzmind/busibox-app/lib/utils';
+import { UserAvatar, type UserProfile } from '@jazzmind/busibox-app';
 import {
   CheckCircle,
   Circle,
@@ -9,7 +10,6 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronRight,
-  User,
   Calendar,
 } from 'lucide-react';
 import { TaskStatusBadge, TaskPriorityBadge } from './StatusBadge';
@@ -29,6 +29,8 @@ interface TaskListProps {
   compact?: boolean;
   /** Additional CSS classes */
   className?: string;
+  /** Optional user list for assignee resolution */
+  users?: UserProfile[];
 }
 
 const statusIcons: Record<TaskStatus, typeof Circle> = {
@@ -53,6 +55,7 @@ export function TaskList({
   onTaskClick,
   compact = false,
   className,
+  users = [],
 }: TaskListProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -65,6 +68,7 @@ export function TaskList({
     : filteredTasks;
 
   const hasMore = maxVisible && filteredTasks.length > maxVisible;
+  const userMap = new Map(users.map((u) => [u.id, u]));
 
   const cycleStatus = (currentStatus: TaskStatus): TaskStatus => {
     const order: TaskStatus[] = ['todo', 'in-progress', 'done'];
@@ -136,8 +140,14 @@ export function TaskList({
                 <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
                   {task.assignee && (
                     <span className="flex items-center gap-1">
-                      <User className="w-3 h-3" />
-                      {task.assignee}
+                      <UserAvatar
+                        size="xs"
+                        name={userMap.get(task.assignee)?.displayName}
+                        email={userMap.get(task.assignee)?.email || task.assignee}
+                        avatarUrl={userMap.get(task.assignee)?.avatarUrl}
+                        favoriteColor={userMap.get(task.assignee)?.favoriteColor}
+                      />
+                      {userMap.get(task.assignee)?.displayName || userMap.get(task.assignee)?.email || task.assignee}
                     </span>
                   )}
                   {task.dueDate && (

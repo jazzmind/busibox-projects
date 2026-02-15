@@ -1,7 +1,7 @@
 /**
  * SSO Route Handler
  * 
- * Handles SSO token exchange from AI Portal.
+ * Handles SSO token exchange from Busibox Portal.
  * Uses shared handlers from @jazzmind/busibox-app for consistent behavior.
  * 
  * GET: Redirect-based flow (validates token from URL, redirects with cookies)

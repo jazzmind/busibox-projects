@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
   },
 
   experimental: {
+    // Allow resolving npm-linked workspace packages outside this repo root.
+    externalDir: true,
     esmExternals: true,
   },
 

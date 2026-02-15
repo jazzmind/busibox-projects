@@ -17,6 +17,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import { UserAvatar, type UserProfile } from '@jazzmind/busibox-app';
 import {
   Search, ZoomIn, ZoomOut, Maximize2, RotateCcw,
   Loader2, AlertCircle, Network, X, ChevronRight,
@@ -194,6 +195,418 @@ function EntityIcon({ type, className }: { type: string; className?: string }) {
 }
 
 // =============================================================================
+// Animated Detail Panel
+// =============================================================================
+
+/** Status icon for tasks with animated check */
+function TaskStatusIcon({ status }: { status?: string }) {
+  switch (status) {
+    case 'done':
+      return (
+        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+          <svg className="w-3 h-3 text-white animate-[scale-in_0.3s_ease-out]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        </span>
+      );
+    case 'in-progress':
+      return (
+        <span className="flex-shrink-0 w-5 h-5 rounded-full border-2 border-blue-500 flex items-center justify-center">
+          <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+        </span>
+      );
+    case 'blocked':
+      return (
+        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
+          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </span>
+      );
+    default: // todo
+      return (
+        <span className="flex-shrink-0 w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-500" />
+      );
+  }
+}
+
+/** Priority badge */
+function PriorityBadge({ priority }: { priority?: string }) {
+  if (!priority) return null;
+  const colors: Record<string, string> = {
+    critical: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+    high: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+    medium: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
+    low: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
+  };
+  return (
+    <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${colors[priority] || colors.low}`}>
+      {priority}
+    </span>
+  );
+}
+
+/** Animated progress bar that fills from 0 on mount */
+function AnimatedProgress({ value, color }: { value: number; color: string }) {
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setWidth(value));
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return (
+    <div className="h-2.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+      <div
+        className="h-full rounded-full transition-all duration-1000 ease-out"
+        style={{ width: `${width}%`, backgroundColor: color }}
+      />
+    </div>
+  );
+}
+
+interface DetailPanelProps {
+  node: ForceGraphNode;
+  graphData: ForceGraphData;
+  usersMap: Map<string, UserProfile>;
+  onClose: () => void;
+  onNavigate: (node: ForceGraphNode) => void;
+}
+
+function DetailPanel({ node, graphData, usersMap, onClose, onNavigate }: DetailPanelProps) {
+  const entityType = getEntityType(node);
+  const isProject = entityType === 'StatusProject';
+
+  // Derive connected tasks and updates from graph links
+  const connectedTasks = useMemo(() => {
+    if (!isProject) return [];
+    return graphData.links
+      .filter(l => {
+        if (l.label !== 'BELONGS_TO') return false;
+        const targetId = typeof l.target === 'string' ? l.target : (l.target as unknown as ForceGraphNode)?.id;
+        return targetId === node.id;
+      })
+      .map(l => {
+        const sourceId = typeof l.source === 'string' ? l.source : (l.source as unknown as ForceGraphNode)?.id;
+        return graphData.nodes.find(n => n.id === sourceId);
+      })
+      .filter((n): n is ForceGraphNode => !!n && getEntityType(n) === 'StatusTask')
+      .sort((a, b) => {
+        // Sort: in-progress first, then todo, blocked, done last
+        const order: Record<string, number> = { 'in-progress': 0, 'blocked': 1, 'todo': 2, 'done': 3 };
+        return (order[a.status || 'todo'] ?? 2) - (order[b.status || 'todo'] ?? 2);
+      });
+  }, [isProject, graphData, node.id]);
+
+  const connectedUpdates = useMemo(() => {
+    if (!isProject) return [];
+    return graphData.links
+      .filter(l => {
+        if (l.label !== 'BELONGS_TO') return false;
+        const targetId = typeof l.target === 'string' ? l.target : (l.target as unknown as ForceGraphNode)?.id;
+        return targetId === node.id;
+      })
+      .map(l => {
+        const sourceId = typeof l.source === 'string' ? l.source : (l.source as unknown as ForceGraphNode)?.id;
+        return graphData.nodes.find(n => n.id === sourceId);
+      })
+      .filter((n): n is ForceGraphNode => !!n && getEntityType(n) === 'StatusUpdate')
+      .slice(0, 3); // Show latest 3
+  }, [isProject, graphData, node.id]);
+
+  // Task stats
+  const taskStats = useMemo(() => {
+    const done = connectedTasks.filter(t => t.status === 'done').length;
+    const inProgress = connectedTasks.filter(t => t.status === 'in-progress').length;
+    const blocked = connectedTasks.filter(t => t.status === 'blocked').length;
+    const todo = connectedTasks.filter(t => t.status === 'todo').length;
+    return { done, inProgress, blocked, todo, total: connectedTasks.length };
+  }, [connectedTasks]);
+
+  const uniqueAssigneeIds = useMemo(() => {
+    return Array.from(
+      new Set(
+        connectedTasks
+          .map((task) => task.assignee)
+          .filter((assignee): assignee is string => Boolean(assignee))
+      )
+    );
+  }, [connectedTasks]);
+
+  // Visible tasks animate in one by one
+  const [visibleTasks, setVisibleTasks] = useState(0);
+  useEffect(() => {
+    if (connectedTasks.length === 0) return;
+    setVisibleTasks(0);
+    let count = 0;
+    const interval = setInterval(() => {
+      count += 1;
+      setVisibleTasks(count);
+      if (count >= connectedTasks.length) clearInterval(interval);
+    }, 120);
+    return () => clearInterval(interval);
+  }, [connectedTasks.length, node.id]);
+
+  return (
+    <div className="absolute top-4 right-4 z-10 w-96 animate-[slide-in_0.35s_ease-out] overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
+      {/* Header — colored banner */}
+      <div
+        className="px-5 py-4 text-white relative overflow-hidden"
+        style={{ backgroundColor: node.color || '#6b7280' }}
+      >
+        {/* Subtle gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-black/10" />
+        <div className="relative">
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <EntityIcon type={entityType} className="w-4 h-4 text-white/80" />
+                <span className="text-xs font-medium text-white/70 uppercase tracking-wider">
+                  {getFriendlyType(node)}
+                </span>
+              </div>
+              <h3 className="text-lg font-bold leading-tight truncate">
+                {node.name || (node as unknown as GraphNode).title || node.id}
+              </h3>
+              {isProject && Boolean((node as unknown as GraphNode).owner) ? (
+                <div className="mt-2 inline-flex items-center gap-2 bg-white/20 rounded-full px-2 py-1 text-xs">
+                  <UserAvatar
+                    size="xs"
+                    name={usersMap.get(String((node as unknown as GraphNode).owner))?.displayName}
+                    email={usersMap.get(String((node as unknown as GraphNode).owner))?.email || String((node as unknown as GraphNode).owner)}
+                    avatarUrl={usersMap.get(String((node as unknown as GraphNode).owner))?.avatarUrl}
+                    favoriteColor={usersMap.get(String((node as unknown as GraphNode).owner))?.favoriteColor}
+                  />
+                  <span>
+                    {usersMap.get(String((node as unknown as GraphNode).owner))?.displayName ||
+                      usersMap.get(String((node as unknown as GraphNode).owner))?.email ||
+                      String((node as unknown as GraphNode).owner)}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+            <button
+              onClick={onClose}
+              className="text-white/60 hover:text-white transition-colors ml-2 mt-0.5"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Status pill */}
+          {node.status && (
+            <span className="inline-block mt-2 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-white/20 backdrop-blur-sm capitalize">
+              {(node.status as string).replace(/-/g, ' ')}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm max-h-[500px] overflow-y-auto">
+        {/* Description */}
+        {Boolean((node as unknown as GraphNode).description) ? (
+          <div className="px-5 pt-4 pb-2">
+            <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2 italic">
+              {String((node as unknown as GraphNode).description)}
+            </p>
+          </div>
+        ) : null}
+
+        {/* Progress bar (projects) */}
+        {isProject && typeof node.progress === 'number' ? (
+          <div className="px-5 pt-3 pb-1">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                Progress
+              </span>
+              <span className="text-sm font-bold" style={{ color: node.color }}>
+                {node.progress}%
+              </span>
+            </div>
+            <AnimatedProgress value={node.progress} color={node.color} />
+            {Boolean((node as unknown as GraphNode).nextCheckpoint) ? (
+              <div className="flex items-center justify-between mt-2 text-xs text-gray-500 dark:text-gray-400">
+                <span>Next: {String((node as unknown as GraphNode).nextCheckpoint)}</span>
+                {Boolean((node as unknown as GraphNode).checkpointDate) ? (
+                  <span>{new Date(String((node as unknown as GraphNode).checkpointDate)).toLocaleDateString()}</span>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* Task summary counters (projects) */}
+        {isProject && taskStats.total > 0 ? (
+          <div className="px-5 pt-3">
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { label: 'Done', value: taskStats.done, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20' },
+                { label: 'Active', value: taskStats.inProgress, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                { label: 'Blocked', value: taskStats.blocked, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-900/20' },
+                { label: 'Todo', value: taskStats.todo, color: 'text-gray-600 dark:text-gray-400', bg: 'bg-gray-50 dark:bg-gray-700/50' },
+              ].map(s => (
+                <div key={s.label} className={`rounded-lg px-2 py-1.5 text-center ${s.bg}`}>
+                  <div className={`text-lg font-bold ${s.color}`}>{s.value}</div>
+                  <div className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase">{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {/* Task list — slides in one by one */}
+        {isProject && connectedTasks.length > 0 ? (
+          <div className="px-5 pt-4 pb-2">
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+              Tasks ({connectedTasks.length})
+            </span>
+            {uniqueAssigneeIds.length > 0 ? (
+              <div className="mt-2 flex items-center gap-1">
+                {uniqueAssigneeIds.map((assigneeId) => {
+                  const user = usersMap.get(assigneeId);
+                  return (
+                    <UserAvatar
+                      key={assigneeId}
+                      size="xs"
+                      name={user?.displayName}
+                      email={user?.email || assigneeId}
+                      avatarUrl={user?.avatarUrl}
+                      favoriteColor={user?.favoriteColor}
+                    />
+                  );
+                })}
+              </div>
+            ) : null}
+            <div className="mt-2 space-y-1">
+              {connectedTasks.map((task, i) => (
+                <div
+                  key={task.id}
+                  className="flex items-center gap-2.5 py-1.5 px-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                  style={{
+                    opacity: i < visibleTasks ? 1 : 0,
+                    transform: i < visibleTasks ? 'translateX(0)' : 'translateX(20px)',
+                    transition: 'opacity 0.3s ease-out, transform 0.3s ease-out',
+                  }}
+                >
+                  <TaskStatusIcon status={task.status} />
+                  <span className={`text-sm flex-1 min-w-0 truncate ${
+                    task.status === 'done'
+                      ? 'text-gray-400 dark:text-gray-500 line-through'
+                      : 'text-gray-800 dark:text-gray-200'
+                  }`}>
+                    {task.name || String((task as unknown as GraphNode).title || '')}
+                  </span>
+                  {task.assignee ? (
+                    <UserAvatar
+                      size="xs"
+                      name={usersMap.get(String(task.assignee))?.displayName}
+                      email={usersMap.get(String(task.assignee))?.email || String(task.assignee)}
+                      avatarUrl={usersMap.get(String(task.assignee))?.avatarUrl}
+                      favoriteColor={usersMap.get(String(task.assignee))?.favoriteColor}
+                    />
+                  ) : null}
+                  <PriorityBadge priority={task.priority} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {/* Recent updates (projects) */}
+        {isProject && connectedUpdates.length > 0 ? (
+          <div className="px-5 pt-3 pb-2">
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+              Recent Updates
+            </span>
+            <div className="mt-2 space-y-2">
+              {connectedUpdates.map((update, i) => (
+                <div
+                  key={update.id}
+                  className="text-xs text-gray-600 dark:text-gray-300 border-l-2 pl-3 py-1 animate-[fade-in_0.4s_ease-out]"
+                  style={{
+                    borderColor: node.color,
+                    animationDelay: `${0.5 + i * 0.15}s`,
+                    animationFillMode: 'backwards',
+                  }}
+                >
+                  <p className="line-clamp-2">{String((update as unknown as GraphNode).content || update.name || '')}</p>
+                  {Boolean((update as unknown as GraphNode).author) ? (
+                    <span className="text-gray-400 dark:text-gray-500 mt-0.5 block">
+                      — {String((update as unknown as GraphNode).author)}
+                    </span>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {/* Task detail (when a task is selected, not a project) */}
+        {entityType === 'StatusTask' ? (
+          <div className="px-5 pt-3 pb-2 space-y-3">
+            {node.priority ? (
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Priority</span>
+                <PriorityBadge priority={node.priority} />
+              </div>
+            ) : null}
+            {Boolean((node as unknown as GraphNode).assignee) ? (
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Assignee</span>
+                <span className="text-sm text-gray-800 dark:text-gray-200 inline-flex items-center gap-1.5">
+                  <UserAvatar
+                    size="xs"
+                    name={usersMap.get(String((node as unknown as GraphNode).assignee))?.displayName}
+                    email={usersMap.get(String((node as unknown as GraphNode).assignee))?.email || String((node as unknown as GraphNode).assignee)}
+                    avatarUrl={usersMap.get(String((node as unknown as GraphNode).assignee))?.avatarUrl}
+                    favoriteColor={usersMap.get(String((node as unknown as GraphNode).assignee))?.favoriteColor}
+                  />
+                  {usersMap.get(String((node as unknown as GraphNode).assignee))?.displayName ||
+                    usersMap.get(String((node as unknown as GraphNode).assignee))?.email ||
+                    String((node as unknown as GraphNode).assignee)}
+                </span>
+              </div>
+            ) : null}
+            {Boolean((node as unknown as GraphNode).dueDate) ? (
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Due</span>
+                <span className="text-sm text-gray-800 dark:text-gray-200">
+                  {new Date(String((node as unknown as GraphNode).dueDate)).toLocaleDateString()}
+                </span>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* Owner + meta (projects) */}
+        {isProject && Boolean((node as unknown as GraphNode).owner) ? (
+          <div className="px-5 pt-2 pb-2">
+            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <span className="font-medium">Owner:</span>
+              <span className="text-gray-700 dark:text-gray-300">{String((node as unknown as GraphNode).owner)}</span>
+            </div>
+          </div>
+        ) : null}
+
+        {/* Navigate button */}
+        {(isProject ||
+          (entityType === 'StatusTask' && node.projectId) ||
+          (entityType === 'StatusUpdate' && node.projectId)) ? (
+          <div className="px-5 pt-2 pb-4">
+            <button
+              onClick={() => onNavigate(node)}
+              className="w-full px-3 py-2.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors inline-flex items-center justify-center gap-2"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              View {getFriendlyType(node)}
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
 // Component
 // =============================================================================
 
@@ -208,6 +621,7 @@ export function ProjectGraph() {
   const [selectedNode, setSelectedNode] = useState<ForceGraphNode | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const [users, setUsers] = useState<UserProfile[]>([]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const graphRef = useRef<any>(null);
@@ -293,7 +707,20 @@ export function ProjectGraph() {
   useEffect(() => {
     fetchGraphData();
     fetchStats();
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch('/api/users', { cache: 'no-store' });
+        if (!response.ok) return;
+        const payload = await response.json();
+        setUsers(Array.isArray(payload.users) ? payload.users : []);
+      } catch {
+        setUsers([]);
+      }
+    };
+    fetchUsers();
   }, [fetchGraphData, fetchStats]);
+
+  const usersMap = useMemo(() => new Map(users.map((u) => [u.id, u])), [users]);
 
   // ==========================================================================
   // Node Expansion
@@ -881,150 +1308,16 @@ export function ProjectGraph() {
           
         </div>
 
-        {/* Detail Panel */}
+        {/* Detail Panel — animated project dashboard */}
         {selectedNode && (
-          <div className="absolute top-4 right-4 z-10 w-80 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 max-h-[700px] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <EntityIcon type={getEntityType(selectedNode)} className="w-4 h-4 text-gray-500" />
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  {getFriendlyType(selectedNode)} Details
-                </h3>
-              </div>
-              <button
-                onClick={() => setSelectedNode(null)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {/* Name */}
-              <div>
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Name</span>
-                <p className="text-sm text-gray-900 dark:text-gray-100 font-medium mt-0.5">
-                  {selectedNode.name || (selectedNode as unknown as GraphNode).title || selectedNode.id}
-                </p>
-              </div>
-
-              {/* Description */}
-              {(selectedNode as unknown as GraphNode).description && (
-                <div>
-                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Description</span>
-                  <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5 line-clamp-3">
-                    {(selectedNode as unknown as GraphNode).description}
-                  </p>
-                </div>
-              )}
-
-              {/* Status */}
-              {selectedNode.status && (
-                <div>
-                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Status</span>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span
-                      className="inline-block w-2.5 h-2.5 rounded-full"
-                      style={{ backgroundColor: selectedNode.color }}
-                    />
-                    <span className="text-sm text-gray-900 dark:text-gray-100 capitalize">
-                      {(selectedNode.status as string).replace(/-/g, ' ')}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Progress (projects) */}
-              {typeof selectedNode.progress === 'number' && (
-                <div>
-                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Progress</span>
-                  <div className="mt-1">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{
-                            width: `${selectedNode.progress}%`,
-                            backgroundColor: selectedNode.color,
-                          }}
-                        />
-                      </div>
-                      <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
-                        {selectedNode.progress}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Priority (tasks) */}
-              {selectedNode.priority && (
-                <div>
-                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Priority</span>
-                  <p className="text-sm text-gray-900 dark:text-gray-100 capitalize mt-0.5">
-                    {selectedNode.priority as string}
-                  </p>
-                </div>
-              )}
-
-              {/* Connections */}
-              <div>
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Connections</span>
-                <div className="mt-1 space-y-1">
-                  {graphData.links
-                    .filter(l => {
-                      const sourceId = typeof l.source === 'string' ? l.source : (l.source as unknown as ForceGraphNode)?.id;
-                      const targetId = typeof l.target === 'string' ? l.target : (l.target as unknown as ForceGraphNode)?.id;
-                      return sourceId === selectedNode.id || targetId === selectedNode.id;
-                    })
-                    .slice(0, 20)
-                    .map((link, i) => {
-                      const sourceId = typeof link.source === 'string' ? link.source : (link.source as unknown as ForceGraphNode)?.id;
-                      const targetId = typeof link.target === 'string' ? link.target : (link.target as unknown as ForceGraphNode)?.id;
-                      const otherId = sourceId === selectedNode.id ? targetId : sourceId;
-                      const otherNode = graphData.nodes.find(n => n.id === otherId);
-                      const isOutgoing = sourceId === selectedNode.id;
-                      return (
-                        <div key={i} className="flex items-center gap-1.5 text-xs">
-                          <ChevronRight
-                            className={`w-3 h-3 text-gray-400 ${!isOutgoing ? 'rotate-180' : ''}`}
-                          />
-                          <span className="text-gray-500 dark:text-gray-400 font-mono">
-                            {link.label}
-                            {link.label === 'SIMILAR_TO' && typeof link.similarityScore === 'number'
-                              ? ` (${Math.round(link.similarityScore * 100)}%)`
-                              : ''}
-                          </span>
-                          <span className="text-gray-400">→</span>
-                          <button
-                            onClick={() => {
-                              const node = graphData.nodes.find(n => n.id === otherId) as ForceGraphNode;
-                              if (node) handleNodeClick(node);
-                            }}
-                            className="text-blue-600 dark:text-blue-400 hover:underline truncate"
-                          >
-                            {otherNode?.name || (otherNode as unknown as GraphNode)?.title || otherId}
-                          </button>
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
-
-              {/* Navigate button */}
-              {(getEntityType(selectedNode) === 'StatusProject' ||
-                (getEntityType(selectedNode) === 'StatusTask' && selectedNode.projectId) ||
-                (getEntityType(selectedNode) === 'StatusUpdate' && selectedNode.projectId)) && (
-                <button
-                  onClick={() => navigateToEntity(selectedNode)}
-                  className="w-full mt-2 px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 inline-flex items-center justify-center gap-2"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  View {getFriendlyType(selectedNode)}
-                </button>
-              )}
-            </div>
-          </div>
+          <DetailPanel
+            key={selectedNode.id}
+            node={selectedNode}
+            graphData={graphData}
+            usersMap={usersMap}
+            onClose={() => setSelectedNode(null)}
+            onNavigate={navigateToEntity}
+          />
         )}
       </div>
 

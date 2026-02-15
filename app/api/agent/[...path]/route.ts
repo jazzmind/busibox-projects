@@ -35,7 +35,7 @@ async function proxyToAgentAPI(request: NextRequest, method: string, path: strin
       const testSessionJwt = process.env.TEST_SESSION_JWT;
       if (!testSessionJwt) {
         return NextResponse.json(
-          { error: 'Authentication required', message: 'Please log in through AI Portal' },
+          { error: 'Authentication required', message: 'Please log in through Busibox Portal' },
           { status: 401 }
         );
       }

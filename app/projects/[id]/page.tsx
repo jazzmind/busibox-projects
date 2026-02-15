@@ -18,6 +18,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { cn } from '@jazzmind/busibox-app/lib/utils';
+import { UserAvatar, UserPicker, type UserProfile } from '@jazzmind/busibox-app';
 import {
   ProjectStatusBadge,
   TaskStatusBadge,
@@ -48,6 +49,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
+  const [users, setUsers] = useState<UserProfile[]>([]);
   
   // New task modal state
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
@@ -84,6 +86,17 @@ export default function ProjectDetailPage({ params }: PageProps) {
     }
   };
 
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch(`${basePath}/api/users`, { cache: 'no-store' });
+      if (!response.ok) return;
+      const payload = await response.json();
+      setUsers(Array.isArray(payload.users) ? payload.users : []);
+    } catch {
+      setUsers([]);
+    }
+  };
+
   // Wait for auth to be ready before fetching data
   useEffect(() => {
     if (!isReady) {
@@ -92,7 +105,10 @@ export default function ProjectDetailPage({ params }: PageProps) {
     }
     console.log('[ProjectDetail] Auth ready, fetching project...');
     fetchProject();
+    fetchUsers();
   }, [id, isReady, refreshKey]);
+
+  const userMap = new Map(users.map((u) => [u.id, u]));
 
   const handleUpdateStatus = () => {
     // Note: router.push automatically prepends basePath from next.config.ts
@@ -460,8 +476,15 @@ export default function ProjectDetailPage({ params }: PageProps) {
                           <TaskStatusBadge status={task.status} />
                           <TaskPriorityBadge priority={task.priority} />
                           {task.assignee && (
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              {task.assignee}
+                            <span className="text-xs text-gray-500 dark:text-gray-400 inline-flex items-center gap-1.5">
+                              <UserAvatar
+                                size="xs"
+                                name={userMap.get(task.assignee)?.displayName}
+                                email={userMap.get(task.assignee)?.email || task.assignee}
+                                avatarUrl={userMap.get(task.assignee)?.avatarUrl}
+                                favoriteColor={userMap.get(task.assignee)?.favoriteColor}
+                              />
+                              {userMap.get(task.assignee)?.displayName || userMap.get(task.assignee)?.email || task.assignee}
                             </span>
                           )}
                         </div>
@@ -579,12 +602,11 @@ export default function ProjectDetailPage({ params }: PageProps) {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Assignee
                   </label>
-                  <input
-                    type="text"
-                    value={newTask.assignee}
-                    onChange={(e) => setNewTask({ ...newTask, assignee: e.target.value })}
+                  <UserPicker
+                    users={users}
+                    value={newTask.assignee || undefined}
                     placeholder="Optional"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={(userId) => setNewTask({ ...newTask, assignee: userId || '' })}
                   />
                 </div>
               </div>

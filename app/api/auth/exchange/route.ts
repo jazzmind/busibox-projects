@@ -9,7 +9,7 @@ import { cookies } from 'next/headers';
  * in an httpOnly cookie for subsequent API requests.
  * 
  * IMPORTANT: We only set app-specific cookies here, NOT busibox-session.
- * The busibox-session is a domain-wide cookie managed by AI Portal and
+ * The busibox-session is a domain-wide cookie managed by Busibox Portal and
  * should not be overwritten by individual apps.
  */
 export async function POST(request: NextRequest) {

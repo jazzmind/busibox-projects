@@ -14,8 +14,8 @@ alwaysApply: false
 ## Token Flow
 
 ```
-1. User clicks app in AI Portal
-2. AI Portal exchanges session JWT for app-scoped token via authz
+1. User clicks app in Busibox Portal
+2. Busibox Portal exchanges session JWT for app-scoped token via authz
 3. authz verifies user has app access via RBAC bindings
 4. authz issues RS256 token with app_id claim and user's roles
 5. App validates token via authz JWKS endpoint

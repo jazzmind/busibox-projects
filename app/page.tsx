@@ -14,7 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { ProjectCard, ProjectCardSkeleton } from '@/components/projects';
-import { useAuth } from '@jazzmind/busibox-app';
+import { UserPicker, type UserProfile, useAuth } from '@jazzmind/busibox-app';
 import type { Project, Task, StatusUpdate, CreateProjectInput, ProjectStatus } from '@/lib/types';
 
 interface ProjectWithDetails extends Project {
@@ -42,6 +42,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
+  const [users, setUsers] = useState<UserProfile[]>([]);
   
   // New Project Modal state
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
@@ -77,6 +78,17 @@ export default function DashboardPage() {
     }
   };
 
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch(`${basePath}/api/users`, { cache: 'no-store' });
+      if (!response.ok) return;
+      const payload = await response.json();
+      setUsers(Array.isArray(payload.users) ? payload.users : []);
+    } catch {
+      setUsers([]);
+    }
+  };
+
   const initializeApp = async () => {
     try {
       setIsInitializing(true);
@@ -102,6 +114,7 @@ export default function DashboardPage() {
     }
     console.log('[Dashboard] Auth ready, fetching dashboard...');
     fetchDashboard();
+    fetchUsers();
   }, [isReady, refreshKey]);
 
   const handleUpdateClick = (projectId: string) => {
@@ -407,6 +420,23 @@ export default function DashboardPage() {
                     <option value="off-track">Off Track</option>
                     <option value="paused">Paused</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Owner
+                  </label>
+                  <UserPicker
+                    users={users}
+                    value={newProject.owner}
+                    placeholder="Assign owner"
+                    onChange={(userId) =>
+                      setNewProject({
+                        ...newProject,
+                        owner: userId || undefined,
+                      })
+                    }
+                  />
                 </div>
               </div>
 
