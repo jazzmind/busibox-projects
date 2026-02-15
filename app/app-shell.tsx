@@ -22,6 +22,7 @@ function AppShellContent({ children, basePath }: { children: React.ReactNode; ba
   // Navigation items
   const navItems = [
     { href: '/', label: 'Dashboard' },
+    { href: '/graph', label: 'Graph' },
     { href: '/chat', label: 'Chat' },
     { href: '/admin', label: 'Admin' },
   ];
@@ -148,13 +149,13 @@ function normalizePortalUrl(raw: string): string {
 }
 
 export function AppShell({ children, basePath }: { children: React.ReactNode; basePath: string }) {
-  const portalUrl = normalizePortalUrl(process.env.NEXT_PUBLIC_AI_PORTAL_URL || '');
+  const rawPortalUrl = process.env.NEXT_PUBLIC_AI_PORTAL_URL || '';
   const appId = process.env.APP_NAME || 'status-report';
   
   return (
     <AuthProvider
       appId={appId}
-      portalUrl={portalUrl}
+      portalUrl={rawPortalUrl}
       basePath={basePath}
     >
       <AppShellContent basePath={basePath}>{children}</AppShellContent>

@@ -12,6 +12,8 @@ import {
   Play,
   Settings,
   AlertTriangle,
+  Network,
+  Database,
 } from 'lucide-react';
 
 interface AgentStatus {
@@ -29,6 +31,23 @@ interface AgentData {
   created: number;
 }
 
+interface GraphSyncResult {
+  document: string;
+  documentId: string;
+  graphNode: string;
+  recordCount: number;
+  syncedCount: number;
+  error?: string;
+}
+
+interface GraphSyncData {
+  success: boolean;
+  message: string;
+  results: GraphSyncResult[];
+  totalRecords: number;
+  totalSynced: number;
+}
+
 export default function AdminPage() {
   const { isReady, refreshKey } = useAuth();
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
@@ -38,6 +57,11 @@ export default function AdminPage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Graph sync state
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<GraphSyncData | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const fetchAgentStatus = async () => {
     try {
@@ -88,6 +112,31 @@ export default function AdminPage() {
       setError(err instanceof Error ? err.message : 'Failed to create agents');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const syncGraphData = async () => {
+    try {
+      setSyncing(true);
+      setSyncError(null);
+      setSyncResult(null);
+
+      const response = await fetch(`${basePath}/api/admin/graph-sync`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || data?.detail || `Failed to sync graph data (${response.status})`);
+      }
+
+      const result: GraphSyncData = await response.json();
+      setSyncResult(result);
+    } catch (err) {
+      console.error('Failed to sync graph:', err);
+      setSyncError(err instanceof Error ? err.message : 'Failed to sync graph data');
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -275,6 +324,133 @@ export default function AdminPage() {
               </div>
             </div>
           )}
+        </section>
+
+        {/* Graph Sync Section */}
+        <section className="mt-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Network className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Graph Database
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Sync project data to Neo4j for relationship visualization
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={syncGraphData}
+                disabled={syncing}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Database className={`w-4 h-4 ${syncing ? 'animate-pulse' : ''}`} />
+                {syncing ? 'Syncing...' : 'Sync to Graph'}
+              </button>
+            </div>
+          </div>
+
+          <div className="px-6 py-4">
+            {/* Sync Error */}
+            {syncError && (
+              <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                <div className="flex items-center gap-2">
+                  <XCircle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0" />
+                  <p className="text-sm text-red-700 dark:text-red-300">{syncError}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Sync Results */}
+            {syncResult && (
+              <div className="space-y-3">
+                <div className={`p-3 rounded-lg border ${
+                  syncResult.success
+                    ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                    : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {syncResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                    )}
+                    <p className={`text-sm font-medium ${
+                      syncResult.success
+                        ? 'text-green-700 dark:text-green-300'
+                        : 'text-amber-700 dark:text-amber-300'
+                    }`}>
+                      {syncResult.message}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Per-document results */}
+                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {syncResult.results.map((result) => (
+                    <div key={result.documentId} className="py-2 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                          result.error
+                            ? 'bg-red-100 dark:bg-red-900/30'
+                            : 'bg-green-100 dark:bg-green-900/30'
+                        }`}>
+                          {result.error ? (
+                            <XCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                          ) : (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                          )}
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {result.document}
+                          </span>
+                          {result.graphNode && (
+                            <span className="ml-2 text-xs text-gray-400 font-mono">
+                              ({result.graphNode})
+                            </span>
+                          )}
+                          {result.error && (
+                            <p className="text-xs text-red-500 dark:text-red-400 mt-0.5">
+                              {result.error}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right text-sm">
+                        {!result.error && (
+                          <span className="text-gray-600 dark:text-gray-400">
+                            {result.syncedCount} / {result.recordCount} records
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Info when no sync has been run */}
+            {!syncResult && !syncError && !syncing && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Click &quot;Sync to Graph&quot; to push all existing projects, tasks, and status updates
+                to the graph database. This enables the Graph visualization page to show
+                relationships between your data.
+              </p>
+            )}
+
+            {/* Syncing indicator */}
+            {syncing && (
+              <div className="flex items-center gap-3 py-4">
+                <RefreshCw className="w-5 h-5 text-violet-500 animate-spin" />
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Syncing projects, tasks, and updates to graph database...
+                </p>
+              </div>
+            )}
+          </div>
         </section>
 
         {/* Additional Info */}
