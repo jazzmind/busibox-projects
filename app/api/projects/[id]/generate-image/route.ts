@@ -9,8 +9,10 @@
  * 2. Fetch the project to get its name and description
  * 3. Craft an image generation prompt from the project details
  * 4. Call POST /llm/images/create on the agent API
- * 5. Save the image URL to the project's leadImage field
- * 6. Return the updated project
+ * 5. Download/decode the generated image bytes
+ * 6. Upload the image to data-api (stored in user's personal MEDIA library)
+ * 7. Save the portal media URL (/portal/api/media/{fileId}) as leadImage
+ * 8. Return the updated project
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -19,6 +21,7 @@ import { getAgentApiUrl } from '@/lib/agent-api-client';
 import { ensureDataDocuments, getProject, updateProject } from '@/lib/data-api-client';
 import { getApiToken } from '@/lib/authz-client';
 import { getTokenFromRequest } from '@jazzmind/busibox-app/lib/auth';
+import { getDataServiceUrl } from '@jazzmind/busibox-app/lib/data';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -68,7 +71,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         prompt,
         size: '1024x1024',
         n: 1,
-        response_format: 'url',
       }),
     });
 
@@ -83,21 +85,97 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const imageData = await imageResponse.json();
 
-    // Extract image URL from OpenAI-format response
-    // Format: { data: [{ url: "...", revised_prompt: "..." }] }
-    const imageUrl = imageData?.data?.[0]?.url || imageData?.data?.[0]?.b64_json;
-
-    if (!imageUrl) {
-      console.error('[generate-image] No image URL in response:', JSON.stringify(imageData));
+    // 5. Extract and download/decode the generated image
+    const first = imageData?.data?.[0];
+    if (!first) {
+      console.error('[generate-image] No image data in response:', JSON.stringify(imageData));
       return NextResponse.json(
-        { error: 'No image URL returned from generation' },
+        { error: 'No image data returned from generation' },
         { status: 500 }
       );
     }
 
-    // 5. Save lead image to project
+    let imageBytes: Buffer;
+    let mimeType = 'image/png';
+
+    if (first.b64_json) {
+      // Base64 models (gpt-image-1, gpt-image-1-mini)
+      imageBytes = Buffer.from(first.b64_json, 'base64');
+      console.log(`[generate-image] Decoded b64_json response (${imageBytes.length} bytes)`);
+    } else if (first.url) {
+      // URL-based models (DALL-E 3, FLUX) - download the temporary URL
+      console.log(`[generate-image] Downloading image from URL: ${first.url.substring(0, 80)}...`);
+      const downloadResp = await fetch(first.url);
+      if (!downloadResp.ok) {
+        return NextResponse.json(
+          { error: 'Failed to download generated image from provider' },
+          { status: 502 }
+        );
+      }
+      const contentType = downloadResp.headers.get('content-type');
+      if (contentType?.includes('jpeg') || contentType?.includes('jpg')) {
+        mimeType = 'image/jpeg';
+      } else if (contentType?.includes('webp')) {
+        mimeType = 'image/webp';
+      }
+      imageBytes = Buffer.from(await downloadResp.arrayBuffer());
+      console.log(`[generate-image] Downloaded image (${imageBytes.length} bytes, ${mimeType})`);
+    } else {
+      console.error('[generate-image] No url or b64_json in response:', JSON.stringify(first));
+      return NextResponse.json(
+        { error: 'Image model returned no image data' },
+        { status: 500 }
+      );
+    }
+
+    // 6. Upload image to data-api (stored in user's personal MEDIA library)
+    const dataApiUrl = getDataServiceUrl();
+    const ext = mimeType === 'image/jpeg' ? 'jpg' : mimeType === 'image/webp' ? 'webp' : 'png';
+    const filename = `project-lead-image.${ext}`;
+
+    const formData = new FormData();
+    formData.append('file', new Blob([imageBytes], { type: mimeType }), filename);
+    formData.append('visibility', 'personal');
+    formData.append('metadata', JSON.stringify({
+      source: 'project_lead_image',
+      projectId: id,
+      projectName: project.name,
+      generated: true,
+    }));
+
+    const uploadResp = await fetch(`${dataApiUrl}/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${auth.apiToken}`,
+      },
+      body: formData,
+    });
+
+    if (!uploadResp.ok) {
+      const errorText = await uploadResp.text();
+      console.error('[generate-image] Data API upload error:', uploadResp.status, errorText);
+      return NextResponse.json(
+        { error: 'Failed to store generated image', details: errorText },
+        { status: 500 }
+      );
+    }
+
+    const uploadData = await uploadResp.json();
+    const fileId = uploadData.fileId;
+    if (!fileId) {
+      console.error('[generate-image] No fileId in upload response:', JSON.stringify(uploadData));
+      return NextResponse.json(
+        { error: 'Upload succeeded but no fileId returned' },
+        { status: 500 }
+      );
+    }
+
+    // 7. Build portal-relative URL and save to project
+    const mediaUrl = `/portal/api/media/${fileId}`;
+    console.log(`[generate-image] Uploaded image, fileId=${fileId}, mediaUrl=${mediaUrl}`);
+
     const updated = await updateProject(auth.apiToken, documentIds.projects, id, {
-      leadImage: imageUrl,
+      leadImage: mediaUrl,
     });
 
     return NextResponse.json(updated);

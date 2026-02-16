@@ -789,9 +789,29 @@ export function ProjectGraph() {
   // Event Handlers
   // ==========================================================================
 
-  const handleNodeClick = useCallback((node: ForceGraphNode) => {
+  const handleNodeClick = useCallback((node: ForceGraphNode, { skipPan = false } = {}) => {
     setSelectedNode(node);
     expandNode(node.id);
+
+    if (skipPan) return;
+
+    // Pan the camera so the clicked node sits in the left portion of the canvas,
+    // leaving room for the detail panel (w-96 = 384px + margin) on the right.
+    // centerAt(x, y) centers the viewport on world-coordinate (x, y).
+    // To shift the node LEFT on screen, we center on a point to the RIGHT of
+    // the node (positive X offset in world space).
+    const graph = graphRef.current;
+    if (graph && typeof node.x === 'number' && typeof node.y === 'number') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const g = graph as any;
+      const currentZoom = typeof g.zoom === 'function' ? g.zoom() : 1;
+      // Panel is ~400px (w-96 + margins). Offset by half the panel width
+      // as a fraction of the canvas, converted to world coordinates.
+      const canvasW = containerRef.current?.clientWidth || window.innerWidth;
+      const panelScreenPx = Math.min(600, canvasW * 0.6);
+      const worldOffsetX = (panelScreenPx / 2) / currentZoom;
+      g.centerAt?.(node.x + worldOffsetX, node.y, 600);
+    }
   }, [expandNode]);
 
   const handleZoomIn = useCallback(() => {
@@ -1044,27 +1064,46 @@ export function ProjectGraph() {
   // Container dimensions - use simple window-based sizing.
   // The container is w-full so width = parent width.
   // Height is fixed at 70vh via CSS; we read it once and on resize.
-  const [dimensions, setDimensions] = useState({ width: 900, height: 600 });
+  const [dimensions, setDimensions] = useState(() => {
+    // Initial estimate based on viewport (matches h-[70vh] min-h-[600px])
+    if (typeof window !== 'undefined') {
+      return {
+        width: Math.floor(window.innerWidth * 0.95) || 900,
+        height: Math.max(Math.floor(window.innerHeight * 0.7), 600),
+      };
+    }
+    return { width: 900, height: 600 };
+  });
 
   useEffect(() => {
     const measure = () => {
       const el = containerRef.current;
       if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const w = Math.floor(rect.width) || 900;
-      const h = Math.floor(rect.height) || 600;
+      // Use clientWidth/clientHeight which reflect the CSS box (excluding border)
+      // and are not affected by child content overflow
+      const w = el.clientWidth || 900;
+      const h = el.clientHeight || 600;
       setDimensions(prev => {
         if (prev.width === w && prev.height === h) return prev;
         return { width: w, height: h };
       });
     };
 
-    // Measure after first paint (container needs to be in DOM)
-    const raf = requestAnimationFrame(measure);
+    // Measure after layout settles — double-rAF ensures CSS has been applied
+    const raf = requestAnimationFrame(() => requestAnimationFrame(measure));
     window.addEventListener('resize', measure);
+
+    // Also use ResizeObserver for more reliable size tracking
+    let ro: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
+      ro = new ResizeObserver(measure);
+      ro.observe(containerRef.current);
+    }
+
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', measure);
+      ro?.disconnect();
     };
   }, []);
 
@@ -1185,13 +1224,21 @@ export function ProjectGraph() {
       const idx = index % projectNodes.length;
       const node = projectNodes[idx];
       if (!node) return;
+      const zoomLevel = 2.5;
 
       // Select the node (opens detail panel + expands spokes)
-      handleNodeClick(node);
+      // skipPan: true — the tour does its own centerAt + zoom below,
+      // so we don't want handleNodeClick to fire a competing animation.
+      handleNodeClick(node, { skipPan: true });
 
-      // Smoothly center the camera on the node
-      graphRef.current.centerAt(node.x, node.y, 800);
-      graphRef.current.zoom(2.5, 800);
+      // Center within visible graph area (excluding the right detail panel).
+      // Panel is ~400px (w-96 + margins). Offset proportionally to canvas width.
+      const canvasW = containerRef.current?.clientWidth || window.innerWidth;
+      const panelScreenPx = Math.min(600, canvasW * 0.6);
+      const worldOffsetX = (panelScreenPx / 2) / zoomLevel;
+
+      graphRef.current.centerAt((node.x ?? 0) + worldOffsetX, node.y ?? 0, 800);
+      graphRef.current.zoom(zoomLevel, 800);
     },
     [projectNodes, handleNodeClick]
   );
@@ -1409,7 +1456,7 @@ export function ProjectGraph() {
             width={dimensions.width}
             height={dimensions.height}
           />
-          <div className="absolute inset-0 [&>div]:!w-full [&>div]:!h-full">
+          <div className="absolute inset-0 z-[1]">
           <ForceGraph2D
               ref={graphRef}
               graphData={filteredData}
