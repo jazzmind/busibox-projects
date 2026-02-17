@@ -134,7 +134,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const filename = `project-lead-image.${ext}`;
 
     const formData = new FormData();
-    formData.append('file', new Blob([imageBytes], { type: mimeType }), filename);
+    formData.append('file', new Blob([new Uint8Array(imageBytes)], { type: mimeType }), filename);
     formData.append('visibility', 'personal');
     formData.append('metadata', JSON.stringify({
       source: 'project_lead_image',
