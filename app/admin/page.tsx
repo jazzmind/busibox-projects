@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   Network,
   Database,
+  Sparkles,
 } from 'lucide-react';
 
 interface AgentStatus {
@@ -48,6 +49,26 @@ interface GraphSyncData {
   totalSynced: number;
 }
 
+interface AdminSettings {
+  id: string;
+  leadImageStyleInstructions: string;
+  updatedAt: string;
+}
+
+interface ImageGenerationSummary {
+  mode: 'missing' | 'all';
+  totalProjects: number;
+  targetedProjects: number;
+  successCount: number;
+  failedCount: number;
+  results: Array<{
+    projectId: string;
+    projectName: string;
+    success: boolean;
+    error?: string;
+  }>;
+}
+
 export default function AdminPage() {
   const { isReady, refreshKey } = useAuth();
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
@@ -62,6 +83,14 @@ export default function AdminPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<GraphSyncData | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [leadImageStyle, setLeadImageStyle] = useState('');
+  const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [imageJobRunning, setImageJobRunning] = useState(false);
+  const [imageJobError, setImageJobError] = useState<string | null>(null);
+  const [imageJobResult, setImageJobResult] = useState<ImageGenerationSummary | null>(null);
 
   const fetchAgentStatus = async () => {
     try {
@@ -115,6 +144,77 @@ export default function AdminPage() {
     }
   };
 
+  const fetchSettings = async () => {
+    try {
+      setSettingsLoading(true);
+      setSettingsError(null);
+      const response = await fetch(`${basePath}/api/admin/settings`);
+      if (!response.ok) {
+        throw new Error('Failed to load image settings');
+      }
+      const data: AdminSettings = await response.json();
+      setLeadImageStyle(data.leadImageStyleInstructions || '');
+    } catch (err) {
+      console.error('Failed to load settings:', err);
+      setSettingsError(err instanceof Error ? err.message : 'Failed to load image settings');
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  const saveSettings = async () => {
+    try {
+      setSettingsSaving(true);
+      setSettingsError(null);
+      setSettingsMessage(null);
+
+      const response = await fetch(`${basePath}/api/admin/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadImageStyleInstructions: leadImageStyle }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || 'Failed to save image settings');
+      }
+
+      setSettingsMessage('Lead image style instructions saved.');
+    } catch (err) {
+      console.error('Failed to save settings:', err);
+      setSettingsError(err instanceof Error ? err.message : 'Failed to save image settings');
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const runImageGeneration = async (mode: 'missing' | 'all') => {
+    try {
+      setImageJobRunning(true);
+      setImageJobError(null);
+      setImageJobResult(null);
+
+      const response = await fetch(`${basePath}/api/admin/generate-images`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || 'Failed to run image generation');
+      }
+
+      const result: ImageGenerationSummary = await response.json();
+      setImageJobResult(result);
+    } catch (err) {
+      console.error('Failed to run image generation:', err);
+      setImageJobError(err instanceof Error ? err.message : 'Failed to run image generation');
+    } finally {
+      setImageJobRunning(false);
+    }
+  };
+
   const syncGraphData = async () => {
     try {
       setSyncing(true);
@@ -143,6 +243,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (!isReady) return;
     fetchAgentStatus();
+    fetchSettings();
   }, [isReady, refreshKey]);
 
   const allAgentsExist = agentData?.agents.every(a => a.exists) ?? false;
@@ -450,6 +551,116 @@ export default function AdminPage() {
                 </p>
               </div>
             )}
+          </div>
+        </section>
+
+        {/* Lead Image Generation Section */}
+        <section className="mt-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3">
+              <Sparkles className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Lead Image Generation
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Set style guidance used by project image generation and run bulk image generation jobs.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-6 py-4 space-y-4">
+            {settingsError && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                <p className="text-sm text-red-700 dark:text-red-300">{settingsError}</p>
+              </div>
+            )}
+
+            {settingsMessage && (
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                <p className="text-sm text-green-700 dark:text-green-300">{settingsMessage}</p>
+              </div>
+            )}
+
+            <div>
+              <label
+                htmlFor="lead-image-style"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+              >
+                Style Instructions
+              </label>
+              <textarea
+                id="lead-image-style"
+                rows={4}
+                value={leadImageStyle}
+                onChange={(event) => setLeadImageStyle(event.target.value)}
+                placeholder="Example: cinematic matte painting, dramatic lighting, cool color palette, no text"
+                disabled={settingsLoading || settingsSaving}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y disabled:opacity-60"
+              />
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                Used when clicking the image button in project details and when running bulk generation.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={saveSettings}
+                disabled={settingsLoading || settingsSaving || !leadImageStyle.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {settingsSaving ? 'Saving...' : 'Save Style Instructions'}
+              </button>
+            </div>
+
+            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+                Bulk Image Operations
+              </h3>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => runImageGeneration('missing')}
+                  disabled={imageJobRunning || settingsLoading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {imageJobRunning ? 'Running...' : 'Generate Missing Images'}
+                </button>
+                <button
+                  onClick={() => runImageGeneration('all')}
+                  disabled={imageJobRunning || settingsLoading}
+                  className="px-4 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {imageJobRunning ? 'Running...' : 'Regenerate All Images'}
+                </button>
+              </div>
+
+              {imageJobError && (
+                <div className="mt-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                  <p className="text-sm text-red-700 dark:text-red-300">{imageJobError}</p>
+                </div>
+              )}
+
+              {imageJobResult && (
+                <div className="mt-3 bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                    Mode: <strong>{imageJobResult.mode === 'all' ? 'Regenerate All' : 'Missing Only'}</strong> | Targets: <strong>{imageJobResult.targetedProjects}</strong> | Success: <strong>{imageJobResult.successCount}</strong> | Failed: <strong>{imageJobResult.failedCount}</strong>
+                  </p>
+                  {imageJobResult.failedCount > 0 && (
+                    <ul className="mt-2 text-xs text-red-600 dark:text-red-300 space-y-1">
+                      {imageJobResult.results
+                        .filter((item) => !item.success)
+                        .slice(0, 10)
+                        .map((item) => (
+                          <li key={item.projectId}>
+                            {item.projectName}: {item.error || 'Unknown error'}
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </section>
 

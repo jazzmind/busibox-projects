@@ -24,6 +24,7 @@ import type {
   UpdateTaskInput,
   StatusUpdate,
   CreateStatusUpdateInput,
+  AppSettings,
 } from './types';
 import type { QueryFilter } from '@jazzmind/busibox-app';
 
@@ -35,6 +36,7 @@ export const DOCUMENTS = {
   PROJECTS: 'busibox-projects-projects',
   TASKS: 'busibox-projects-tasks',
   UPDATES: 'busibox-projects-updates',
+  SETTINGS: 'busibox-projects-settings',
 } as const;
 
 // ==========================================================================
@@ -187,6 +189,26 @@ export const updateSchema: AppDataSchema = {
   },
 };
 
+export const settingsSchema: AppDataSchema = {
+  fields: {
+    id: { type: 'string', required: true, hidden: true },
+    leadImageStyleInstructions: {
+      type: 'string',
+      label: 'Lead Image Style Instructions',
+      multiline: true,
+      order: 1,
+    },
+    updatedAt: { type: 'string', label: 'Updated', readonly: true, hidden: true },
+  },
+  displayName: 'Project Settings',
+  itemLabel: 'Setting',
+  sourceApp: 'busibox-projects',
+  visibility: 'personal',
+  allowSharing: false,
+  graphNode: '',
+  graphRelationships: [],
+};
+
 // ==========================================================================
 // ensureDataDocuments
 // ==========================================================================
@@ -195,6 +217,7 @@ export async function ensureDataDocuments(token: string): Promise<{
   projects: string;
   tasks: string;
   updates: string;
+  settings: string;
 }> {
   const ids = await ensureDocuments(
     token,
@@ -214,10 +237,69 @@ export async function ensureDataDocuments(token: string): Promise<{
         schema: updateSchema,
         visibility: 'personal',
       },
+      settings: {
+        name: DOCUMENTS.SETTINGS,
+        schema: settingsSchema,
+        visibility: 'personal',
+      },
     },
     'busibox-projects'
   );
-  return ids as { projects: string; tasks: string; updates: string };
+  return ids as { projects: string; tasks: string; updates: string; settings: string };
+}
+
+const DEFAULT_STYLE_INSTRUCTIONS =
+  'clean, minimal, corporate-friendly, using soft gradients and geometric shapes';
+
+export async function getAppSettings(
+  token: string,
+  documentId: string
+): Promise<AppSettings> {
+  const result = await queryRecords<AppSettings>(token, documentId, {
+    limit: 1,
+    orderBy: [{ field: 'updatedAt', direction: 'desc' }],
+  });
+
+  const existing = result.records[0];
+  if (existing) {
+    return existing;
+  }
+
+  return {
+    id: 'app-settings',
+    leadImageStyleInstructions: DEFAULT_STYLE_INSTRUCTIONS,
+    updatedAt: getNow(),
+  };
+}
+
+export async function upsertAppSettings(
+  token: string,
+  documentId: string,
+  input: { leadImageStyleInstructions: string }
+): Promise<AppSettings> {
+  const result = await queryRecords<AppSettings>(token, documentId, {
+    where: { field: 'id', op: 'eq', value: 'app-settings' },
+    limit: 1,
+  });
+
+  const payload: AppSettings = {
+    id: 'app-settings',
+    leadImageStyleInstructions: input.leadImageStyleInstructions,
+    updatedAt: getNow(),
+  };
+
+  if (result.records[0]) {
+    await updateRecords(
+      token,
+      documentId,
+      payload as unknown as Record<string, unknown>,
+      { field: 'id', op: 'eq', value: 'app-settings' }
+    );
+  } else {
+    await insertRecords(token, documentId, [payload as unknown as Record<string, unknown>]);
+  }
+
+  return payload;
 }
 
 // ==========================================================================

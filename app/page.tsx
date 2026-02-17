@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Plus,
@@ -33,6 +33,33 @@ interface DashboardData {
   };
 }
 
+type SortOption =
+  | 'updated-desc'
+  | 'created-desc'
+  | 'alpha-asc'
+  | 'progress-desc'
+  | 'progress-asc'
+  | 'status-asc';
+
+const SORT_STORAGE_KEY = 'busibox-projects-dashboard-sort';
+
+const SORT_LABELS: Record<SortOption, string> = {
+  'updated-desc': 'Last Updated',
+  'created-desc': 'Date Created',
+  'alpha-asc': 'Alphabetical (A-Z)',
+  'progress-desc': 'Progress (High to Low)',
+  'progress-asc': 'Progress (Low to High)',
+  'status-asc': 'Status',
+};
+
+const STATUS_ORDER: Record<ProjectStatus, number> = {
+  'on-track': 1,
+  'at-risk': 2,
+  'off-track': 3,
+  'paused': 4,
+  'completed': 5,
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const { isReady, refreshKey } = useAuth();
@@ -43,6 +70,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [sortOption, setSortOption] = useState<SortOption>('updated-desc');
   
   // New Project Modal state
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
@@ -116,6 +144,19 @@ export default function DashboardPage() {
     fetchDashboard();
     fetchUsers();
   }, [isReady, refreshKey]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = window.localStorage.getItem(SORT_STORAGE_KEY) as SortOption | null;
+    if (saved && saved in SORT_LABELS) {
+      setSortOption(saved);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(SORT_STORAGE_KEY, sortOption);
+  }, [sortOption]);
 
   const handleUpdateClick = (projectId: string) => {
     // Note: router.push automatically prepends basePath from next.config.ts
@@ -196,6 +237,32 @@ export default function DashboardPage() {
     { label: 'Completed', value: data.stats.completed, icon: CheckCircle2, color: 'text-blue-600 dark:text-blue-400' },
   ] : [];
 
+  const sortedProjects = useMemo(() => {
+    if (!data?.projects) return [];
+    const projects = [...data.projects];
+    projects.sort((a, b) => {
+      switch (sortOption) {
+        case 'created-desc':
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case 'alpha-asc':
+          return a.name.localeCompare(b.name);
+        case 'progress-desc':
+          return b.progress - a.progress;
+        case 'progress-asc':
+          return a.progress - b.progress;
+        case 'status-asc': {
+          const statusDiff = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+          if (statusDiff !== 0) return statusDiff;
+          return a.name.localeCompare(b.name);
+        }
+        case 'updated-desc':
+        default:
+          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      }
+    });
+    return projects;
+  }, [data?.projects, sortOption]);
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
@@ -211,6 +278,26 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="dashboard-sort"
+                  className="text-sm text-gray-600 dark:text-gray-300"
+                >
+                  Sort
+                </label>
+                <select
+                  id="dashboard-sort"
+                  value={sortOption}
+                  onChange={(event) => setSortOption(event.target.value as SortOption)}
+                  className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {Object.entries(SORT_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <button
                 onClick={handleOpenChat}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
@@ -317,7 +404,7 @@ export default function DashboardPage() {
         {/* Project Cards Grid */}
         {!loading && data && data.projects.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {data.projects.map((project) => (
+            {sortedProjects.map((project) => (
               <ProjectCard
                 key={project.id}
                 project={project}

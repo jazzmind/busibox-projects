@@ -101,6 +101,12 @@ export interface UpdateProjectInput {
   leadImage?: string;
 }
 
+export interface AppSettings {
+  id: string;
+  leadImageStyleInstructions: string;
+  updatedAt: string;
+}
+
 // ==========================================================================
 // Task Types
 // ==========================================================================
