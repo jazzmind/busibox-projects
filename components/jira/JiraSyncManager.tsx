@@ -49,6 +49,7 @@ export function JiraSyncManager({ basePath = '', enabled }: JiraSyncManagerProps
   const [epics, setEpics] = useState<JiraEpicOption[]>([]);
   const [stories, setStories] = useState<JiraStoryOption[]>([]);
   const [selectedStoryKeys, setSelectedStoryKeys] = useState<string[]>([]);
+  const [importAllStories, setImportAllStories] = useState(true);
   const [mappings, setMappings] = useState<JiraSyncMappingView[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [selectedJiraProjectKey, setSelectedJiraProjectKey] = useState('');
@@ -121,6 +122,7 @@ export function JiraSyncManager({ basePath = '', enabled }: JiraSyncManagerProps
     const loadedStories = payload.stories || [];
     setStories(loadedStories);
     setSelectedStoryKeys(loadedStories.filter((story: JiraStoryOption) => !story.mapped).map((story: JiraStoryOption) => story.key));
+    setImportAllStories(true);
   }
 
   async function refreshAll() {
@@ -307,7 +309,7 @@ export function JiraSyncManager({ basePath = '', enabled }: JiraSyncManagerProps
           jiraProjectKey: selectedJiraProjectKey,
           jiraEpicKey: selectedEpicKey,
           storyKeys: selectedStoryKeys,
-          importAllStories: false,
+          importAllStories,
         }),
       });
       if (!response.ok) {
@@ -333,8 +335,14 @@ export function JiraSyncManager({ basePath = '', enabled }: JiraSyncManagerProps
   }, [enabled, selectedJiraProjectKey, selectedEpicKey, saving]);
 
   const canImportStories = useMemo(() => {
-    return Boolean(enabled && selectedProjectId && selectedEpicKey && selectedStoryKeys.length > 0 && !saving);
-  }, [enabled, selectedProjectId, selectedEpicKey, selectedStoryKeys, saving]);
+    return Boolean(
+      enabled &&
+        selectedProjectId &&
+        selectedEpicKey &&
+        (importAllStories || selectedStoryKeys.length > 0) &&
+        !saving
+    );
+  }, [enabled, selectedProjectId, selectedEpicKey, selectedStoryKeys, importAllStories, saving]);
 
   if (!enabled) {
     return (
@@ -451,6 +459,16 @@ export function JiraSyncManager({ basePath = '', enabled }: JiraSyncManagerProps
             </div>
           </div>
 
+          <label className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              checked={importAllStories}
+              onChange={(event) => setImportAllStories(event.target.checked)}
+              className="rounded border-gray-300 dark:border-gray-600"
+            />
+            Import all unmapped stories
+          </label>
+
           {stories.length === 0 ? (
             <p className="text-xs text-gray-500 dark:text-gray-400">No stories found under this epic.</p>
           ) : (
@@ -465,7 +483,7 @@ export function JiraSyncManager({ basePath = '', enabled }: JiraSyncManagerProps
                     <input
                       type="checkbox"
                       checked={checked}
-                      disabled={Boolean(story.mapped)}
+                      disabled={Boolean(story.mapped) || importAllStories}
                       onChange={(event) => {
                         if (event.target.checked) {
                           setSelectedStoryKeys((prev) => Array.from(new Set([...prev, story.key])));
