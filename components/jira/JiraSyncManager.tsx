@@ -18,6 +18,15 @@ interface JiraEpicOption {
   mapped?: boolean;
 }
 
+interface JiraStoryOption {
+  id: string;
+  key: string;
+  summary?: string;
+  status?: string;
+  priority?: string;
+  mapped?: boolean;
+}
+
 interface JiraSyncMappingView {
   id: string;
   projectId: string;
@@ -38,6 +47,8 @@ export function JiraSyncManager({ basePath = '', enabled }: JiraSyncManagerProps
   const [projects, setProjects] = useState<Project[]>([]);
   const [jiraProjects, setJiraProjects] = useState<JiraProjectOption[]>([]);
   const [epics, setEpics] = useState<JiraEpicOption[]>([]);
+  const [stories, setStories] = useState<JiraStoryOption[]>([]);
+  const [selectedStoryKeys, setSelectedStoryKeys] = useState<string[]>([]);
   const [mappings, setMappings] = useState<JiraSyncMappingView[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [selectedJiraProjectKey, setSelectedJiraProjectKey] = useState('');
@@ -92,6 +103,26 @@ export function JiraSyncManager({ basePath = '', enabled }: JiraSyncManagerProps
     setEpics(payload.epics || []);
   }
 
+  async function loadStories(epicKey: string) {
+    if (!epicKey) {
+      setStories([]);
+      setSelectedStoryKeys([]);
+      return;
+    }
+    const response = await fetch(
+      `${basePath}/api/admin/jira/stories?epicKey=${encodeURIComponent(epicKey)}`,
+      { cache: 'no-store' }
+    );
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.error || 'Failed to load stories');
+    }
+    const payload = await response.json();
+    const loadedStories = payload.stories || [];
+    setStories(loadedStories);
+    setSelectedStoryKeys(loadedStories.filter((story: JiraStoryOption) => !story.mapped).map((story: JiraStoryOption) => story.key));
+  }
+
   async function refreshAll() {
     if (!enabled) return;
     try {
@@ -129,6 +160,12 @@ export function JiraSyncManager({ basePath = '', enabled }: JiraSyncManagerProps
       setError(err instanceof Error ? err.message : 'Failed to load epics')
     );
   }, [selectedJiraProjectKey]);
+
+  useEffect(() => {
+    loadStories(selectedEpicKey).catch((err) =>
+      setError(err instanceof Error ? err.message : 'Failed to load stories')
+    );
+  }, [selectedEpicKey]);
 
   async function linkMapping() {
     try {
@@ -228,9 +265,76 @@ export function JiraSyncManager({ basePath = '', enabled }: JiraSyncManagerProps
     }
   }
 
+  async function createProjectFromEpic() {
+    try {
+      setSaving(true);
+      setError(null);
+      setMessage(null);
+      const response = await fetch(`${basePath}/api/admin/jira/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create_project_from_epic',
+          jiraProjectKey: selectedJiraProjectKey,
+          jiraEpicKey: selectedEpicKey,
+        }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || payload?.message || 'Failed to create project from epic');
+      }
+      const payload = await response.json();
+      setMessage(`Created project "${payload.project?.name || payload.project?.id}" from ${selectedEpicKey}.`);
+      await Promise.all([loadBusiboxProjects(), loadMappings(), loadEpics(selectedJiraProjectKey), loadStories(selectedEpicKey)]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create project from epic');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function importStoriesToProject() {
+    try {
+      setSaving(true);
+      setError(null);
+      setMessage(null);
+      const response = await fetch(`${basePath}/api/admin/jira/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'import_stories_to_project',
+          projectId: selectedProjectId,
+          jiraProjectKey: selectedJiraProjectKey,
+          jiraEpicKey: selectedEpicKey,
+          storyKeys: selectedStoryKeys,
+          importAllStories: false,
+        }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || payload?.message || 'Failed to import stories');
+      }
+      const payload = await response.json();
+      setMessage(`Imported ${payload.importedStories || 0} stories into the selected project.`);
+      await Promise.all([loadMappings(), loadStories(selectedEpicKey)]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to import stories');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const canLink = useMemo(() => {
     return Boolean(enabled && selectedProjectId && selectedJiraProjectKey && !saving);
   }, [enabled, selectedProjectId, selectedJiraProjectKey, saving]);
+
+  const canCreateProjectFromEpic = useMemo(() => {
+    return Boolean(enabled && selectedJiraProjectKey && selectedEpicKey && !saving);
+  }, [enabled, selectedJiraProjectKey, selectedEpicKey, saving]);
+
+  const canImportStories = useMemo(() => {
+    return Boolean(enabled && selectedProjectId && selectedEpicKey && selectedStoryKeys.length > 0 && !saving);
+  }, [enabled, selectedProjectId, selectedEpicKey, selectedStoryKeys, saving]);
 
   if (!enabled) {
     return (
@@ -322,6 +426,65 @@ export function JiraSyncManager({ basePath = '', enabled }: JiraSyncManagerProps
       >
         {saving ? 'Linking...' : 'Link Project to Epic'}
       </button>
+
+      {selectedEpicKey ? (
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+              JIRA Epic Stories ({stories.length})
+            </h4>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={createProjectFromEpic}
+                disabled={!canCreateProjectFromEpic}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg disabled:opacity-50"
+              >
+                Create Project from Epic
+              </button>
+              <button
+                onClick={importStoriesToProject}
+                disabled={!canImportStories}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg disabled:opacity-50"
+              >
+                Import Selected Stories
+              </button>
+            </div>
+          </div>
+
+          {stories.length === 0 ? (
+            <p className="text-xs text-gray-500 dark:text-gray-400">No stories found under this epic.</p>
+          ) : (
+            <div className="max-h-48 overflow-auto border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-700">
+              {stories.map((story) => {
+                const checked = selectedStoryKeys.includes(story.key);
+                return (
+                  <label
+                    key={story.id}
+                    className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 dark:text-gray-300"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={Boolean(story.mapped)}
+                      onChange={(event) => {
+                        if (event.target.checked) {
+                          setSelectedStoryKeys((prev) => Array.from(new Set([...prev, story.key])));
+                        } else {
+                          setSelectedStoryKeys((prev) => prev.filter((key) => key !== story.key));
+                        }
+                      }}
+                      className="rounded border-gray-300 dark:border-gray-600"
+                    />
+                    <span className="font-medium">{story.key}</span>
+                    <span className="truncate">{story.summary || '(No summary)'}</span>
+                    {story.mapped ? <span className="text-amber-600 dark:text-amber-400">(already mapped)</span> : null}
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : null}
 
       <div className="divide-y divide-gray-200 dark:divide-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
         {loading ? (

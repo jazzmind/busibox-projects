@@ -126,7 +126,7 @@ function mapBusiboxPriorityToJira(priority: TaskPriority): string {
   }
 }
 
-function mapJiraPriorityToBusibox(priorityName?: string): TaskPriority {
+export function mapJiraPriorityToBusibox(priorityName?: string): TaskPriority {
   const value = (priorityName || '').toLowerCase();
   if (value.includes('highest') || value.includes('critical')) return 'critical';
   if (value.includes('high')) return 'high';
