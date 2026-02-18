@@ -69,6 +69,9 @@ export interface Project {
   team: string[];
   tags: string[];
   leadImage?: string; // URL to AI-generated project lead image
+  jiraEpicKey?: string;
+  jiraProjectKey?: string;
+  jiraSyncEnabled?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -85,6 +88,9 @@ export interface CreateProjectInput {
   team?: string[];
   tags?: string[];
   leadImage?: string;
+  jiraEpicKey?: string;
+  jiraProjectKey?: string;
+  jiraSyncEnabled?: boolean;
 }
 
 export interface UpdateProjectInput {
@@ -99,6 +105,9 @@ export interface UpdateProjectInput {
   team?: string[];
   tags?: string[];
   leadImage?: string;
+  jiraEpicKey?: string;
+  jiraProjectKey?: string;
+  jiraSyncEnabled?: boolean;
 }
 
 export interface AppSettings {
@@ -123,6 +132,7 @@ export interface Task {
   assignee?: string;
   priority: TaskPriority;
   dueDate?: string;
+  jiraIssueKey?: string;
   order: number;
   createdAt: string;
   updatedAt: string;
@@ -136,6 +146,7 @@ export interface CreateTaskInput {
   assignee?: string;
   priority?: TaskPriority;
   dueDate?: string;
+  jiraIssueKey?: string;
   order?: number;
 }
 
@@ -146,7 +157,52 @@ export interface UpdateTaskInput {
   assignee?: string;
   priority?: TaskPriority;
   dueDate?: string;
+  jiraIssueKey?: string;
   order?: number;
+}
+
+// ==========================================================================
+// JIRA Integration Types
+// ==========================================================================
+
+export type JiraSyncDirection = 'push' | 'pull' | 'both';
+
+export interface JiraConfig {
+  id: string;
+  jiraBaseUrl: string;
+  jiraEmail: string;
+  jiraApiToken: string;
+  webhookSecret?: string;
+  webhookId?: string;
+  connected: boolean;
+  updatedAt: string;
+}
+
+export interface JiraSyncMapping {
+  id: string;
+  projectId: string;
+  jiraProjectKey: string;
+  jiraEpicKey: string;
+  jiraEpicIssueId?: string;
+  syncEnabled: boolean;
+  syncDirection: JiraSyncDirection;
+  lastSyncAt?: string;
+  lastBusiboxUpdatedAt?: string;
+  lastJiraUpdatedAt?: string;
+  updatedAt: string;
+}
+
+export interface JiraTaskMapping {
+  id: string;
+  projectId: string;
+  taskId: string;
+  jiraIssueKey: string;
+  jiraIssueId?: string;
+  syncEnabled: boolean;
+  lastSyncAt?: string;
+  lastBusiboxUpdatedAt?: string;
+  lastJiraUpdatedAt?: string;
+  updatedAt: string;
 }
 
 // ==========================================================================

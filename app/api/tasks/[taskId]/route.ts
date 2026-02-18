@@ -14,6 +14,7 @@ import {
   updateTask,
   deleteTask,
 } from '@/lib/data-api-client';
+import { syncProjectToJiraIfMapped } from '@/lib/jira-auto-sync';
 import type { UpdateTaskInput } from '@/lib/types';
 
 interface RouteParams {
@@ -65,6 +66,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
+
+    await syncProjectToJiraIfMapped(auth.apiToken, task.projectId).catch((error) => {
+      console.error('[TASK] JIRA sync failed after update:', error);
+    });
 
     return NextResponse.json(task);
   } catch (error) {

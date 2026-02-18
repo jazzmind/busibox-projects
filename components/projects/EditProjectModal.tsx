@@ -12,11 +12,18 @@ import type { Project, ProjectStatus, UpdateProjectInput } from '@/lib/types';
 interface EditProjectModalProps {
   project: Project;
   users: UserProfile[];
+  jiraConnected?: boolean;
   onClose: () => void;
   onSave: (updates: UpdateProjectInput) => Promise<void>;
 }
 
-export function EditProjectModal({ project, users, onClose, onSave }: EditProjectModalProps) {
+export function EditProjectModal({
+  project,
+  users,
+  jiraConnected = false,
+  onClose,
+  onSave,
+}: EditProjectModalProps) {
   const [form, setForm] = useState({
     name: project.name,
     description: project.description || '',
@@ -27,6 +34,9 @@ export function EditProjectModal({ project, users, onClose, onSave }: EditProjec
     checkpointDate: project.checkpointDate ? project.checkpointDate.split('T')[0] : '',
     checkpointProgress: project.checkpointProgress,
     tags: (project.tags || []).join(', '),
+    jiraSyncEnabled: project.jiraSyncEnabled ?? false,
+    jiraProjectKey: project.jiraProjectKey || '',
+    jiraEpicKey: project.jiraEpicKey || '',
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -47,6 +57,9 @@ export function EditProjectModal({ project, users, onClose, onSave }: EditProjec
           .split(',')
           .map((t) => t.trim())
           .filter(Boolean),
+        jiraSyncEnabled: form.jiraSyncEnabled,
+        jiraProjectKey: form.jiraProjectKey.trim() || undefined,
+        jiraEpicKey: form.jiraEpicKey.trim() || undefined,
       };
       await onSave(updates);
       onClose();
@@ -243,6 +256,68 @@ export function EditProjectModal({ project, users, onClose, onSave }: EditProjec
                 placeholder="e.g., ai, automation, priority"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+            </div>
+
+            {/* JIRA Sync */}
+            <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                JIRA Sync
+              </label>
+
+              {jiraConnected ? (
+                <div className="space-y-3">
+                  <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={form.jiraSyncEnabled}
+                      onChange={(e) => setForm({ ...form, jiraSyncEnabled: e.target.checked })}
+                      className="rounded border-gray-300 dark:border-gray-600"
+                    />
+                    Sync this project with JIRA epic
+                  </label>
+
+                  {form.jiraSyncEnabled && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label
+                          htmlFor="edit-project-jira-project-key"
+                          className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                        >
+                          JIRA Project Key
+                        </label>
+                        <input
+                          id="edit-project-jira-project-key"
+                          type="text"
+                          value={form.jiraProjectKey}
+                          onChange={(e) => setForm({ ...form, jiraProjectKey: e.target.value.toUpperCase() })}
+                          placeholder="e.g., TEAM"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="edit-project-jira-epic-key"
+                          className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                        >
+                          JIRA Epic Key
+                        </label>
+                        <input
+                          id="edit-project-jira-epic-key"
+                          type="text"
+                          value={form.jiraEpicKey}
+                          onChange={(e) => setForm({ ...form, jiraEpicKey: e.target.value.toUpperCase() })}
+                          placeholder="Leave blank to auto-create"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  JIRA is not connected for your account. Open Admin Settings to configure your personal API key.
+                </p>
+              )}
             </div>
           </div>
 

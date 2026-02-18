@@ -12,6 +12,7 @@ import {
   listTasks,
   createTask,
 } from '@/lib/data-api-client';
+import { syncProjectToJiraIfMapped } from '@/lib/jira-auto-sync';
 import type { CreateTaskInput } from '@/lib/types';
 
 interface RouteParams {
@@ -70,6 +71,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const task = await createTask(auth.apiToken, documentIds.tasks, {
       ...body,
       projectId,
+    });
+    await syncProjectToJiraIfMapped(auth.apiToken, projectId).catch((error) => {
+      console.error('[TASKS] JIRA sync failed after create:', error);
     });
 
     return NextResponse.json(task, { status: 201 });

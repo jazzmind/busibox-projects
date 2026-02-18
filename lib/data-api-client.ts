@@ -37,6 +37,7 @@ export const DOCUMENTS = {
   TASKS: 'busibox-projects-tasks',
   UPDATES: 'busibox-projects-updates',
   SETTINGS: 'busibox-projects-settings',
+  JIRA: 'busibox-projects-jira',
 } as const;
 
 // ==========================================================================
@@ -69,8 +70,11 @@ export const projectSchema: AppDataSchema = {
     team: { type: 'array', label: 'Team Members', widget: 'tags', readonly: true, order: 9 },
     tags: { type: 'array', label: 'Tags', widget: 'tags', readonly: true, order: 10 },
     leadImage: { type: 'string', label: 'Lead Image', hidden: true, order: 11 },
-    createdAt: { type: 'string', label: 'Created', readonly: true, hidden: true },
-    updatedAt: { type: 'string', label: 'Updated', readonly: true, hidden: true },
+    jiraEpicKey: { type: 'string', label: 'JIRA Epic Key', hidden: true, order: 12 },
+    jiraProjectKey: { type: 'string', label: 'JIRA Project Key', hidden: true, order: 13 },
+    jiraSyncEnabled: { type: 'boolean', label: 'JIRA Sync Enabled', hidden: true, order: 14 },
+    createdAt: { type: 'string', label: 'Created', readonly: true, hidden: true, order: 15 },
+    updatedAt: { type: 'string', label: 'Updated', readonly: true, hidden: true, order: 16 },
   },
   displayName: 'Projects',
   itemLabel: 'Project',
@@ -117,9 +121,10 @@ export const taskSchema: AppDataSchema = {
       order: 5,
     },
     dueDate: { type: 'string', label: 'Due Date', widget: 'date', order: 6 },
-    order: { type: 'integer', label: 'Order', hidden: true },
-    createdAt: { type: 'string', label: 'Created', readonly: true, hidden: true },
-    updatedAt: { type: 'string', label: 'Updated', readonly: true, hidden: true },
+    jiraIssueKey: { type: 'string', label: 'JIRA Issue Key', hidden: true, order: 7 },
+    order: { type: 'integer', label: 'Order', hidden: true, order: 8 },
+    createdAt: { type: 'string', label: 'Created', readonly: true, hidden: true, order: 9 },
+    updatedAt: { type: 'string', label: 'Updated', readonly: true, hidden: true, order: 10 },
   },
   displayName: 'Tasks',
   itemLabel: 'Task',
@@ -209,6 +214,50 @@ export const settingsSchema: AppDataSchema = {
   graphRelationships: [],
 };
 
+export const jiraSchema: AppDataSchema = {
+  fields: {
+    id: { type: 'string', required: true, hidden: true },
+    recordType: {
+      type: 'enum',
+      values: ['config', 'mapping', 'task-mapping'],
+      required: true,
+      label: 'Record Type',
+      hidden: true,
+    },
+    jiraBaseUrl: { type: 'string', label: 'JIRA Base URL', hidden: true },
+    jiraEmail: { type: 'string', label: 'JIRA Email', hidden: true },
+    jiraApiToken: { type: 'string', label: 'JIRA API Token', hidden: true },
+    webhookSecret: { type: 'string', label: 'Webhook Secret', hidden: true },
+    webhookId: { type: 'string', label: 'Webhook ID', hidden: true },
+    connected: { type: 'boolean', label: 'Connected', hidden: true },
+    projectId: { type: 'string', label: 'Project ID', hidden: true },
+    taskId: { type: 'string', label: 'Task ID', hidden: true },
+    jiraProjectKey: { type: 'string', label: 'JIRA Project Key', hidden: true },
+    jiraEpicKey: { type: 'string', label: 'JIRA Epic Key', hidden: true },
+    jiraEpicIssueId: { type: 'string', label: 'JIRA Epic Issue ID', hidden: true },
+    jiraIssueKey: { type: 'string', label: 'JIRA Issue Key', hidden: true },
+    jiraIssueId: { type: 'string', label: 'JIRA Issue ID', hidden: true },
+    syncEnabled: { type: 'boolean', label: 'Sync Enabled', hidden: true },
+    syncDirection: {
+      type: 'enum',
+      values: ['push', 'pull', 'both'],
+      label: 'Sync Direction',
+      hidden: true,
+    },
+    lastSyncAt: { type: 'string', label: 'Last Sync At', hidden: true },
+    lastBusiboxUpdatedAt: { type: 'string', label: 'Last Busibox Update', hidden: true },
+    lastJiraUpdatedAt: { type: 'string', label: 'Last JIRA Update', hidden: true },
+    updatedAt: { type: 'string', label: 'Updated At', hidden: true },
+  },
+  displayName: 'JIRA Sync',
+  itemLabel: 'JIRA Record',
+  sourceApp: 'busibox-projects',
+  visibility: 'personal',
+  allowSharing: false,
+  graphNode: '',
+  graphRelationships: [],
+};
+
 // ==========================================================================
 // ensureDataDocuments
 // ==========================================================================
@@ -218,6 +267,7 @@ export async function ensureDataDocuments(token: string): Promise<{
   tasks: string;
   updates: string;
   settings: string;
+  jira: string;
 }> {
   const ids = await ensureDocuments(
     token,
@@ -242,10 +292,15 @@ export async function ensureDataDocuments(token: string): Promise<{
         schema: settingsSchema,
         visibility: 'personal',
       },
+      jira: {
+        name: DOCUMENTS.JIRA,
+        schema: jiraSchema,
+        visibility: 'personal',
+      },
     },
     'busibox-projects'
   );
-  return ids as { projects: string; tasks: string; updates: string; settings: string };
+  return ids as { projects: string; tasks: string; updates: string; settings: string; jira: string };
 }
 
 const DEFAULT_STYLE_INSTRUCTIONS =
@@ -356,6 +411,9 @@ export async function createProject(
     owner: input.owner,
     team: input.team || [],
     tags: input.tags || [],
+    jiraEpicKey: input.jiraEpicKey,
+    jiraProjectKey: input.jiraProjectKey,
+    jiraSyncEnabled: input.jiraSyncEnabled ?? false,
     createdAt: now,
     updatedAt: now,
   };
@@ -471,6 +529,7 @@ export async function createTask(
     assignee: input.assignee,
     priority: input.priority || 'medium',
     dueDate: input.dueDate,
+    jiraIssueKey: input.jiraIssueKey,
     order: input.order ?? maxOrder + 1,
     createdAt: now,
     updatedAt: now,

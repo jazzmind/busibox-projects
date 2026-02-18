@@ -68,6 +68,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
   // Edit modal state
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [jiraConnected, setJiraConnected] = useState(false);
 
   // Image generation state
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -108,6 +109,17 @@ export default function ProjectDetailPage({ params }: PageProps) {
     }
   };
 
+  const fetchJiraConnectionStatus = async () => {
+    try {
+      const response = await fetch(`${basePath}/api/admin/jira/config`, { cache: 'no-store' });
+      if (!response.ok) return;
+      const payload = await response.json();
+      setJiraConnected(Boolean(payload.connected));
+    } catch {
+      setJiraConnected(false);
+    }
+  };
+
   // Wait for auth to be ready before fetching data
   useEffect(() => {
     if (!isReady) {
@@ -117,6 +129,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
     console.log('[ProjectDetail] Auth ready, fetching project...');
     fetchProject();
     fetchUsers();
+    fetchJiraConnectionStatus();
   }, [id, isReady, refreshKey]);
 
   const userMap = new Map(users.map((u) => [u.id, u]));
@@ -681,6 +694,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
         <EditProjectModal
           project={data.project}
           users={users}
+          jiraConnected={jiraConnected}
           onClose={() => setShowEditProjectModal(false)}
           onSave={handleEditProject}
         />

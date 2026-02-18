@@ -13,6 +13,7 @@ import {
   createProject,
   getDashboardData,
 } from '@/lib/data-api-client';
+import { maybeCreateMappingFromProject, syncProjectToJiraIfMapped } from '@/lib/jira-auto-sync';
 import type { CreateProjectInput } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
@@ -70,6 +71,10 @@ export async function POST(request: NextRequest) {
     }
 
     const project = await createProject(auth.apiToken, documentIds.projects, body);
+    await maybeCreateMappingFromProject(auth.apiToken, project);
+    await syncProjectToJiraIfMapped(auth.apiToken, project.id).catch((error) => {
+      console.error('[PROJECTS] JIRA sync failed after create:', error);
+    });
 
     return NextResponse.json(project, { status: 201 });
   } catch (error) {

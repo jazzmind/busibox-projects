@@ -17,6 +17,7 @@ import { CheckpointProgress } from './ProgressBar';
 import { ProjectStatusBadge } from './StatusBadge';
 import { TaskPreview } from './TaskList';
 import { UpdatePreview } from './StatusTimeline';
+import { JiraSyncBadge } from '@/components/jira/JiraSyncBadge';
 import type { Project, Task, StatusUpdate } from '@/lib/types';
 
 interface ProjectCardProps {
@@ -104,6 +105,12 @@ export function ProjectCard({
                 {project.description}
               </p>
             )}
+            <div className="mt-2">
+              <JiraSyncBadge
+                jiraEpicKey={project.jiraEpicKey}
+                syncEnabled={project.jiraSyncEnabled}
+              />
+            </div>
           </div>
           <ProjectStatusBadge status={project.status} />
         </div>

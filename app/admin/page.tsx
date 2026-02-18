@@ -15,7 +15,10 @@ import {
   Network,
   Database,
   Sparkles,
+  Link2,
 } from 'lucide-react';
+import { JiraSettingsSection } from '@/components/jira/JiraSettingsSection';
+import { JiraSyncManager } from '@/components/jira/JiraSyncManager';
 
 interface AgentStatus {
   name: string;
@@ -91,6 +94,7 @@ export default function AdminPage() {
   const [imageJobRunning, setImageJobRunning] = useState(false);
   const [imageJobError, setImageJobError] = useState<string | null>(null);
   const [imageJobResult, setImageJobResult] = useState<ImageGenerationSummary | null>(null);
+  const [jiraConnected, setJiraConnected] = useState(false);
 
   const fetchAgentStatus = async () => {
     try {
@@ -425,6 +429,37 @@ export default function AdminPage() {
               </div>
             </div>
           )}
+        </section>
+
+        {/* Graph Sync Section */}
+        <section className="mt-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3">
+              <Link2 className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  JIRA Integration
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Connect your personal JIRA Cloud account and manage bi-directional epic/story sync.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-b border-gray-200 dark:border-gray-700">
+            <div className="px-6 py-3 bg-gray-50 dark:bg-gray-900/40">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Connection</h3>
+            </div>
+            <JiraSettingsSection basePath={basePath} onConnectedChange={setJiraConnected} />
+          </div>
+
+          <div>
+            <div className="px-6 py-3 bg-gray-50 dark:bg-gray-900/40 border-t border-gray-200 dark:border-gray-700">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Project Mapping & Sync</h3>
+            </div>
+            <JiraSyncManager basePath={basePath} enabled={jiraConnected} />
+          </div>
         </section>
 
         {/* Graph Sync Section */}

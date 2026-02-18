@@ -15,6 +15,7 @@ import {
   deleteProject,
   getProjectWithDetails,
 } from '@/lib/data-api-client';
+import { maybeCreateMappingFromProject, syncProjectToJiraIfMapped } from '@/lib/jira-auto-sync';
 import type { UpdateProjectInput } from '@/lib/types';
 
 interface RouteParams {
@@ -79,6 +80,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
+
+    await maybeCreateMappingFromProject(auth.apiToken, project);
+    await syncProjectToJiraIfMapped(auth.apiToken, project.id).catch((error) => {
+      console.error('[PROJECT] JIRA sync failed after update:', error);
+    });
 
     return NextResponse.json(project);
   } catch (error) {
