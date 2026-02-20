@@ -21,6 +21,45 @@ import { getAgentApiToken } from '@/lib/authz-client';
 
 // Get agent API URL (server-side uses internal IP)
 const AGENT_API_URL = getAgentApiUrl();
+const STATUS_PROJECT_AGENTS = ['status-assistant', 'status-update'] as const;
+const CHAT_MESSAGE_PATHS = new Set([
+  'chat/message',
+  'chat/message/stream',
+  'chat/message/stream/agentic',
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function applyBusiboxProjectsAgentDefaults(targetPath: string, body: unknown): unknown {
+  if (!CHAT_MESSAGE_PATHS.has(targetPath) || !isRecord(body)) {
+    return body;
+  }
+
+  const metadata = isRecord(body.metadata) ? body.metadata : undefined;
+  if (metadata?.appName !== 'busibox-projects') {
+    return body;
+  }
+
+  const selectedAgents = Array.isArray(body.selected_agents)
+    ? body.selected_agents.filter((value): value is string => typeof value === 'string')
+    : [];
+
+  const hasStatusAssistant = selectedAgents.includes('status-assistant');
+  const hasStatusUpdate = selectedAgents.includes('status-update');
+
+  // For busibox-projects chat, always allow both status agents so the dispatcher
+  // can choose query vs write/update flows correctly.
+  if (selectedAgents.length === 0 || (hasStatusAssistant && !hasStatusUpdate)) {
+    return {
+      ...body,
+      selected_agents: [...new Set([...selectedAgents, ...STATUS_PROJECT_AGENTS])],
+    };
+  }
+
+  return body;
+}
 
 async function proxyToAgentAPI(request: NextRequest, method: string, path: string[]) {
   try {
@@ -87,7 +126,8 @@ async function forwardRequest(
       const contentType = request.headers.get('content-type');
       if (contentType?.includes('application/json')) {
         try {
-          const body = await request.json();
+          const rawBody = await request.json();
+          const body = applyBusiboxProjectsAgentDefaults(targetPath, rawBody);
           options.headers = {
             ...options.headers,
             'Content-Type': 'application/json',

@@ -143,7 +143,6 @@ Try pasting your meeting notes, or ask me anything!`;
             <SimpleChatInterface
               token={apiToken || ''} // Token passed for compatibility, but proxy uses cookie auth
               agentUrl={agentApiUrl}
-              agentId="status-assistant"
               placeholder="Ask a question or paste meeting notes..."
               welcomeMessage={buildWelcomeMessage()}
               enableWebSearch={false}
