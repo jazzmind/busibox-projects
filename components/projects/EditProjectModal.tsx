@@ -4,23 +4,33 @@
  * EditProjectModal - Modal for editing project details including owner assignment.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import { UserPicker, type UserProfile } from '@jazzmind/busibox-app';
-import type { Project, ProjectStatus, UpdateProjectInput } from '@/lib/types';
+import type { Project, ProjectStatus, UpdateProjectInput, Roadmap, ProjectPriority } from '@/lib/types';
 
 interface EditProjectModalProps {
   project: Project;
   users: UserProfile[];
   jiraConnected?: boolean;
+  roadmaps?: Roadmap[];
   onClose: () => void;
   onSave: (updates: UpdateProjectInput) => Promise<void>;
 }
+
+const PRIORITY_OPTIONS: { value: ProjectPriority; label: string }[] = [
+  { value: 1, label: 'P1 - Critical' },
+  { value: 2, label: 'P2 - High' },
+  { value: 3, label: 'P3 - Medium' },
+  { value: 4, label: 'P4 - Low' },
+  { value: 5, label: 'P5 - Minimal' },
+];
 
 export function EditProjectModal({
   project,
   users,
   jiraConnected = false,
+  roadmaps = [],
   onClose,
   onSave,
 }: EditProjectModalProps) {
@@ -34,6 +44,10 @@ export function EditProjectModal({
     checkpointDate: project.checkpointDate ? project.checkpointDate.split('T')[0] : '',
     checkpointProgress: project.checkpointProgress,
     tags: (project.tags || []).join(', '),
+    roadmaps: project.roadmaps || [],
+    priority: (project.priority || 3) as ProjectPriority,
+    startDate: project.startDate ? project.startDate.split('T')[0] : '',
+    targetDate: project.targetDate ? project.targetDate.split('T')[0] : '',
     jiraSyncEnabled: project.jiraSyncEnabled ?? false,
     jiraProjectKey: project.jiraProjectKey || '',
     jiraEpicKey: project.jiraEpicKey || '',
@@ -57,6 +71,10 @@ export function EditProjectModal({
           .split(',')
           .map((t) => t.trim())
           .filter(Boolean),
+        roadmaps: form.roadmaps,
+        priority: form.priority,
+        startDate: form.startDate || undefined,
+        targetDate: form.targetDate || undefined,
         jiraSyncEnabled: form.jiraSyncEnabled,
         jiraProjectKey: form.jiraProjectKey.trim() || undefined,
         jiraEpicKey: form.jiraEpicKey.trim() || undefined,
@@ -239,6 +257,94 @@ export function EditProjectModal({
                 className="w-full"
               />
             </div>
+
+            {/* Priority */}
+            <div>
+              <label
+                htmlFor="edit-project-priority"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+              >
+                Priority
+              </label>
+              <select
+                id="edit-project-priority"
+                value={form.priority}
+                onChange={(e) => setForm({ ...form, priority: parseInt(e.target.value) as ProjectPriority })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {PRIORITY_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Start/Target Dates */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="edit-project-start-date"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                >
+                  Start Date
+                </label>
+                <input
+                  id="edit-project-start-date"
+                  type="date"
+                  value={form.startDate}
+                  onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="edit-project-target-date"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                >
+                  Target Date
+                </label>
+                <input
+                  id="edit-project-target-date"
+                  type="date"
+                  value={form.targetDate}
+                  onChange={(e) => setForm({ ...form, targetDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            {/* Roadmaps */}
+            {roadmaps.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Roadmaps
+                </label>
+                <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                  {roadmaps.map((rm) => (
+                    <label
+                      key={rm.id}
+                      className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded px-2 py-1"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={form.roadmaps.includes(rm.id)}
+                        onChange={(e) => {
+                          const newRoadmaps = e.target.checked
+                            ? [...form.roadmaps, rm.id]
+                            : form.roadmaps.filter((id) => id !== rm.id);
+                          setForm({ ...form, roadmaps: newRoadmaps });
+                        }}
+                        className="rounded border-gray-300 dark:border-gray-600"
+                      />
+                      <span
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: rm.color }}
+                      />
+                      {rm.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Tags */}
             <div>

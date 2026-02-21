@@ -31,7 +31,7 @@ import {
   EditTaskModal,
 } from '@/components/projects';
 import { useAuth } from '@jazzmind/busibox-app';
-import type { Project, Task, StatusUpdate, TaskStatus, UpdateProjectInput, UpdateTaskInput } from '@/lib/types';
+import type { Project, Task, StatusUpdate, TaskStatus, UpdateProjectInput, UpdateTaskInput, Roadmap } from '@/lib/types';
 
 interface ProjectDetailData {
   project: Project;
@@ -69,6 +69,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [jiraConnected, setJiraConnected] = useState(false);
+  const [roadmaps, setRoadmaps] = useState<Roadmap[]>([]);
 
   // Image generation state
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -120,6 +121,17 @@ export default function ProjectDetailPage({ params }: PageProps) {
     }
   };
 
+  const fetchRoadmaps = async () => {
+    try {
+      const response = await fetch(`${basePath}/api/roadmaps`, { cache: 'no-store' });
+      if (!response.ok) return;
+      const payload = await response.json();
+      setRoadmaps(Array.isArray(payload.roadmaps) ? payload.roadmaps : []);
+    } catch {
+      setRoadmaps([]);
+    }
+  };
+
   // Wait for auth to be ready before fetching data
   useEffect(() => {
     if (!isReady) {
@@ -130,6 +142,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
     fetchProject();
     fetchUsers();
     fetchJiraConnectionStatus();
+    fetchRoadmaps();
   }, [id, isReady, refreshKey]);
 
   const userMap = new Map(users.map((u) => [u.id, u]));
@@ -695,6 +708,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
           project={data.project}
           users={users}
           jiraConnected={jiraConnected}
+          roadmaps={roadmaps}
           onClose={() => setShowEditProjectModal(false)}
           onSave={handleEditProject}
         />

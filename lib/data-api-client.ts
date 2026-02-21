@@ -25,6 +25,9 @@ import type {
   StatusUpdate,
   CreateStatusUpdateInput,
   AppSettings,
+  Roadmap,
+  CreateRoadmapInput,
+  UpdateRoadmapInput,
 } from './types';
 import type { QueryFilter } from '@jazzmind/busibox-app';
 
@@ -38,6 +41,7 @@ export const DOCUMENTS = {
   UPDATES: 'busibox-projects-updates',
   SETTINGS: 'busibox-projects-settings',
   JIRA: 'busibox-projects-jira',
+  ROADMAPS: 'busibox-projects-roadmaps',
 } as const;
 
 // ==========================================================================
@@ -69,6 +73,10 @@ export const projectSchema: AppDataSchema = {
     owner: { type: 'string', label: 'Owner', order: 8 },
     team: { type: 'array', label: 'Team Members', widget: 'tags', readonly: true, order: 9 },
     tags: { type: 'array', label: 'Tags', widget: 'tags', readonly: true, order: 10 },
+    roadmaps: { type: 'array', label: 'Roadmaps', hidden: true, order: 10.1 },
+    priority: { type: 'integer', min: 1, max: 5, label: 'Priority', order: 10.2 },
+    startDate: { type: 'string', label: 'Start Date', widget: 'date', order: 10.3 },
+    targetDate: { type: 'string', label: 'Target Date', widget: 'date', order: 10.4 },
     leadImage: { type: 'string', label: 'Lead Image', hidden: true, order: 11 },
     jiraEpicKey: { type: 'string', label: 'JIRA Epic Key', hidden: true, order: 12 },
     jiraProjectKey: { type: 'string', label: 'JIRA Project Key', hidden: true, order: 13 },
@@ -258,6 +266,25 @@ export const jiraSchema: AppDataSchema = {
   graphRelationships: [],
 };
 
+export const roadmapSchema: AppDataSchema = {
+  fields: {
+    id: { type: 'string', required: true, hidden: true },
+    name: { type: 'string', required: true, label: 'Roadmap Name', order: 1 },
+    description: { type: 'string', label: 'Description', multiline: true, order: 2 },
+    color: { type: 'string', label: 'Color', order: 3 },
+    sortOrder: { type: 'integer', label: 'Sort Order', order: 4 },
+    createdAt: { type: 'string', label: 'Created', readonly: true, hidden: true, order: 5 },
+    updatedAt: { type: 'string', label: 'Updated', readonly: true, hidden: true, order: 6 },
+  },
+  displayName: 'Roadmaps',
+  itemLabel: 'Roadmap',
+  sourceApp: 'busibox-projects',
+  visibility: 'personal',
+  allowSharing: true,
+  graphNode: '',
+  graphRelationships: [],
+};
+
 // ==========================================================================
 // ensureDataDocuments
 // ==========================================================================
@@ -268,6 +295,7 @@ export async function ensureDataDocuments(token: string): Promise<{
   updates: string;
   settings: string;
   jira: string;
+  roadmaps: string;
 }> {
   const ids = await ensureDocuments(
     token,
@@ -297,10 +325,15 @@ export async function ensureDataDocuments(token: string): Promise<{
         schema: jiraSchema,
         visibility: 'personal',
       },
+      roadmaps: {
+        name: DOCUMENTS.ROADMAPS,
+        schema: roadmapSchema,
+        visibility: 'personal',
+      },
     },
     'busibox-projects'
   );
-  return ids as { projects: string; tasks: string; updates: string; settings: string; jira: string };
+  return ids as { projects: string; tasks: string; updates: string; settings: string; jira: string; roadmaps: string };
 }
 
 const DEFAULT_STYLE_INSTRUCTIONS =
@@ -411,6 +444,10 @@ export async function createProject(
     owner: input.owner,
     team: input.team || [],
     tags: input.tags || [],
+    roadmaps: input.roadmaps || [],
+    priority: input.priority || 3,
+    startDate: input.startDate,
+    targetDate: input.targetDate,
     jiraEpicKey: input.jiraEpicKey,
     jiraProjectKey: input.jiraProjectKey,
     jiraSyncEnabled: input.jiraSyncEnabled ?? false,
@@ -710,4 +747,83 @@ export async function getDashboardData(
   };
 
   return { projects: projectsWithDetails, stats };
+}
+
+// ==========================================================================
+// Roadmap Operations
+// ==========================================================================
+
+const ROADMAP_COLORS = [
+  '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
+  '#06b6d4', '#f97316', '#6366f1', '#14b8a6', '#e11d48',
+];
+
+export async function listRoadmaps(
+  token: string,
+  documentId: string
+): Promise<{ roadmaps: Roadmap[]; total: number }> {
+  const result = await queryRecords<Roadmap>(token, documentId, {
+    orderBy: [{ field: 'sortOrder', direction: 'asc' }],
+    limit: 100,
+  });
+  return { roadmaps: result.records, total: result.total };
+}
+
+export async function getRoadmap(
+  token: string,
+  documentId: string,
+  roadmapId: string
+): Promise<Roadmap | null> {
+  const result = await queryRecords<Roadmap>(token, documentId, {
+    where: { field: 'id', op: 'eq', value: roadmapId },
+    limit: 1,
+  });
+  return result.records[0] || null;
+}
+
+export async function createRoadmap(
+  token: string,
+  documentId: string,
+  input: CreateRoadmapInput
+): Promise<Roadmap> {
+  const now = getNow();
+  const existing = await listRoadmaps(token, documentId);
+  const maxOrder = existing.roadmaps.reduce((max, r) => Math.max(max, r.sortOrder || 0), 0);
+  const colorIndex = existing.total % ROADMAP_COLORS.length;
+
+  const roadmap: Roadmap = {
+    id: generateId(),
+    name: input.name,
+    description: input.description,
+    color: input.color || ROADMAP_COLORS[colorIndex],
+    sortOrder: input.sortOrder ?? maxOrder + 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await insertRecords(token, documentId, [roadmap]);
+  return roadmap;
+}
+
+export async function updateRoadmap(
+  token: string,
+  documentId: string,
+  roadmapId: string,
+  input: UpdateRoadmapInput
+): Promise<Roadmap | null> {
+  const existing = await getRoadmap(token, documentId, roadmapId);
+  if (!existing) return null;
+
+  const updates = { ...input, updatedAt: getNow() };
+  await updateRecords(token, documentId, updates, { field: 'id', op: 'eq', value: roadmapId });
+  return { ...existing, ...updates };
+}
+
+export async function deleteRoadmap(
+  token: string,
+  documentId: string,
+  roadmapId: string
+): Promise<boolean> {
+  const result = await deleteRecords(token, documentId, { field: 'id', op: 'eq', value: roadmapId });
+  return result.count > 0;
 }

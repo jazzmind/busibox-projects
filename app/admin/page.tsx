@@ -16,9 +16,15 @@ import {
   Database,
   Sparkles,
   Link2,
+  Layers,
+  Download,
+  Upload,
+  FileText,
+  FileDown,
 } from 'lucide-react';
 import { JiraSettingsSection } from '@/components/jira/JiraSettingsSection';
 import { JiraSyncManager } from '@/components/jira/JiraSyncManager';
+import { RoadmapManager } from '@/components/roadmap/RoadmapManager';
 
 interface AgentStatus {
   name: string;
@@ -95,6 +101,22 @@ export default function AdminPage() {
   const [imageJobError, setImageJobError] = useState<string | null>(null);
   const [imageJobResult, setImageJobResult] = useState<ImageGenerationSummary | null>(null);
   const [jiraConnected, setJiraConnected] = useState(false);
+
+  // Import/Export state
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importPreview, setImportPreview] = useState<{
+    dryRun: boolean;
+    summary: { roadmaps: number; projects: number; tasks: number; updates: number };
+    warnings: string[];
+  } | null>(null);
+  const [importResult, setImportResult] = useState<{
+    success: boolean;
+    created: { roadmaps: number; projects: number; tasks: number; updates: number };
+    warnings: string[];
+  } | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   const fetchAgentStatus = async () => {
     try {
@@ -242,6 +264,135 @@ export default function AdminPage() {
     } finally {
       setSyncing(false);
     }
+  };
+
+  const handleExportMarkdown = async () => {
+    try {
+      setExporting(true);
+      const response = await fetch(`${basePath}/api/admin/export`);
+      if (!response.ok) throw new Error('Export failed');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `busibox-projects-${new Date().toISOString().split('T')[0]}.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export failed:', err);
+      setImportError(err instanceof Error ? err.message : 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportJson = async () => {
+    try {
+      setExporting(true);
+      const response = await fetch(`${basePath}/api/admin/export?format=json`);
+      if (!response.ok) throw new Error('Export failed');
+      const data = await response.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `busibox-projects-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export failed:', err);
+      setImportError(err instanceof Error ? err.message : 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const response = await fetch(`${basePath}/api/admin/template`);
+      if (!response.ok) throw new Error('Template download failed');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'busibox-projects-template.md';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Template download failed:', err);
+    }
+  };
+
+  const handleFileSelect = async (file: File) => {
+    try {
+      setImportError(null);
+      setImportResult(null);
+      setImportPreview(null);
+      setPendingFile(file);
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${basePath}/api/admin/import?dryRun=true`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || 'Preview failed');
+      }
+
+      const preview = await response.json();
+      setImportPreview(preview);
+    } catch (err) {
+      console.error('Import preview failed:', err);
+      setImportError(err instanceof Error ? err.message : 'Failed to preview import');
+      setPendingFile(null);
+    }
+  };
+
+  const handleImportConfirm = async () => {
+    if (!pendingFile) return;
+    try {
+      setImporting(true);
+      setImportError(null);
+
+      const formData = new FormData();
+      formData.append('file', pendingFile);
+
+      const response = await fetch(`${basePath}/api/admin/import`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || 'Import failed');
+      }
+
+      const result = await response.json();
+      setImportResult(result);
+      setImportPreview(null);
+      setPendingFile(null);
+    } catch (err) {
+      console.error('Import failed:', err);
+      setImportError(err instanceof Error ? err.message : 'Import failed');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleImportCancel = () => {
+    setPendingFile(null);
+    setImportPreview(null);
+    setImportError(null);
   };
 
   useEffect(() => {
@@ -431,7 +582,27 @@ export default function AdminPage() {
           )}
         </section>
 
-        {/* Graph Sync Section */}
+        {/* Roadmaps Section */}
+        <section className="mt-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3">
+              <Layers className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Roadmaps
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Create and manage roadmaps to organize your projects into strategic tracks
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="px-6 py-4">
+            <RoadmapManager />
+          </div>
+        </section>
+
+        {/* JIRA Integration Section */}
         <section className="mt-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-3">
@@ -693,6 +864,186 @@ export default function AdminPage() {
                         ))}
                     </ul>
                   )}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Import / Export Section */}
+        <section className="mt-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3">
+              <FileText className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Import &amp; Export
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Export your roadmaps, projects and tasks as markdown or import from a file
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-6 py-4 space-y-6">
+            {importError && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                <div className="flex items-center gap-2">
+                  <XCircle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0" />
+                  <p className="text-sm text-red-700 dark:text-red-300">{importError}</p>
+                </div>
+              </div>
+            )}
+
+            {importResult && (
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                  <p className="text-sm font-medium text-green-700 dark:text-green-300">Import successful</p>
+                </div>
+                <p className="text-sm text-green-700 dark:text-green-300">
+                  Created: {importResult.created.roadmaps} roadmaps, {importResult.created.projects} projects,{' '}
+                  {importResult.created.tasks} tasks, {importResult.created.updates} updates
+                </p>
+                {importResult.warnings.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Warnings:</p>
+                    <ul className="text-xs text-amber-600 dark:text-amber-400 mt-1 space-y-0.5">
+                      {importResult.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Export */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+                Export
+              </h3>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={handleExportMarkdown}
+                  disabled={exporting}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <Download className={`w-4 h-4 ${exporting ? 'animate-pulse' : ''}`} />
+                  {exporting ? 'Exporting...' : 'Export Markdown'}
+                </button>
+                <button
+                  onClick={handleExportJson}
+                  disabled={exporting}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+                >
+                  <Download className={`w-4 h-4 ${exporting ? 'animate-pulse' : ''}`} />
+                  Export JSON
+                </button>
+                <button
+                  onClick={handleDownloadTemplate}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                >
+                  <FileDown className="w-4 h-4" />
+                  Download Template
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                The template includes a schema reference so an AI can populate it with your project data.
+              </p>
+            </div>
+
+            {/* Import */}
+            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+                Import
+              </h3>
+
+              {!importPreview ? (
+                <div>
+                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <Upload className="w-8 h-8 text-gray-400 dark:text-gray-500 mb-2" />
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <span className="font-medium text-blue-600 dark:text-blue-400">Click to upload</span>{' '}
+                        or drag a markdown file
+                      </p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                        .md files exported from this system or created from the template
+                      </p>
+                    </div>
+                    <input
+                      type="file"
+                      accept=".md,.markdown,text/markdown,text/plain"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleFileSelect(file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2">
+                      Import Preview
+                    </h4>
+                    <p className="text-sm text-blue-700 dark:text-blue-400 mb-3">
+                      File: <strong>{pendingFile?.name}</strong>
+                    </p>
+                    <div className="grid grid-cols-4 gap-3 text-center">
+                      <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-blue-200 dark:border-blue-800">
+                        <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                          {importPreview.summary.roadmaps}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Roadmaps</p>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-blue-200 dark:border-blue-800">
+                        <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                          {importPreview.summary.projects}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Projects</p>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-blue-200 dark:border-blue-800">
+                        <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                          {importPreview.summary.tasks}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Tasks</p>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-blue-200 dark:border-blue-800">
+                        <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                          {importPreview.summary.updates}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Updates</p>
+                      </div>
+                    </div>
+                    {importPreview.warnings.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Warnings:</p>
+                        <ul className="text-xs text-amber-600 dark:text-amber-400 mt-1 space-y-0.5">
+                          {importPreview.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={handleImportConfirm}
+                      disabled={importing}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      <Upload className={`w-4 h-4 ${importing ? 'animate-spin' : ''}`} />
+                      {importing ? 'Importing...' : 'Confirm Import'}
+                    </button>
+                    <button
+                      onClick={handleImportCancel}
+                      disabled={importing}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

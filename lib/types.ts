@@ -68,6 +68,10 @@ export interface Project {
   owner?: string;
   team: string[];
   tags: string[];
+  roadmaps: string[]; // roadmap IDs this project belongs to
+  priority: ProjectPriority; // 1 (highest) to 5 (lowest)
+  startDate?: string; // ISO date - when work begins
+  targetDate?: string; // ISO date - target delivery
   leadImage?: string; // URL to AI-generated project lead image
   jiraEpicKey?: string;
   jiraProjectKey?: string;
@@ -87,6 +91,10 @@ export interface CreateProjectInput {
   owner?: string;
   team?: string[];
   tags?: string[];
+  roadmaps?: string[];
+  priority?: ProjectPriority;
+  startDate?: string;
+  targetDate?: string;
   leadImage?: string;
   jiraEpicKey?: string;
   jiraProjectKey?: string;
@@ -104,6 +112,10 @@ export interface UpdateProjectInput {
   owner?: string;
   team?: string[];
   tags?: string[];
+  roadmaps?: string[];
+  priority?: ProjectPriority;
+  startDate?: string;
+  targetDate?: string;
   leadImage?: string;
   jiraEpicKey?: string;
   jiraProjectKey?: string;
@@ -204,6 +216,36 @@ export interface JiraTaskMapping {
   lastJiraUpdatedAt?: string;
   updatedAt: string;
 }
+
+// ==========================================================================
+// Roadmap Types
+// ==========================================================================
+
+export interface Roadmap {
+  id: string;
+  name: string;
+  description?: string;
+  color: string; // hex color for visual identification
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateRoadmapInput {
+  name: string;
+  description?: string;
+  color?: string;
+  sortOrder?: number;
+}
+
+export interface UpdateRoadmapInput {
+  name?: string;
+  description?: string;
+  color?: string;
+  sortOrder?: number;
+}
+
+export type ProjectPriority = 1 | 2 | 3 | 4 | 5;
 
 // ==========================================================================
 // Status Update Types

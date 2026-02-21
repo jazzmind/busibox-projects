@@ -22,6 +22,7 @@ function AppShellContent({ children, basePath }: { children: React.ReactNode; ba
   // Navigation items
   const navItems = [
     { href: '/', label: 'Dashboard' },
+    { href: '/roadmap', label: 'Roadmap' },
     { href: '/graph', label: 'Graph' },
     { href: '/chat', label: 'Chat' },
     { href: '/admin', label: 'Admin' },

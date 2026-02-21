@@ -12,10 +12,11 @@ import {
   XCircle,
   CheckCircle2,
   X,
+  Layers,
 } from 'lucide-react';
 import { ProjectCard, ProjectCardSkeleton } from '@/components/projects';
 import { UserPicker, type UserProfile, useAuth } from '@jazzmind/busibox-app';
-import type { Project, Task, StatusUpdate, CreateProjectInput, ProjectStatus } from '@/lib/types';
+import type { Project, Task, StatusUpdate, CreateProjectInput, ProjectStatus, Roadmap } from '@/lib/types';
 
 interface ProjectWithDetails extends Project {
   tasks: Task[];
@@ -71,6 +72,9 @@ export default function DashboardPage() {
   const [isInitializing, setIsInitializing] = useState(false);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [sortOption, setSortOption] = useState<SortOption>('updated-desc');
+  const [roadmaps, setRoadmaps] = useState<Roadmap[]>([]);
+  const [filterRoadmap, setFilterRoadmap] = useState<string>('all');
+  const [groupByRoadmap, setGroupByRoadmap] = useState(false);
   
   // New Project Modal state
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
@@ -117,6 +121,17 @@ export default function DashboardPage() {
     }
   };
 
+  const fetchRoadmaps = async () => {
+    try {
+      const response = await fetch(`${basePath}/api/roadmaps`, { cache: 'no-store' });
+      if (!response.ok) return;
+      const payload = await response.json();
+      setRoadmaps(Array.isArray(payload.roadmaps) ? payload.roadmaps : []);
+    } catch {
+      setRoadmaps([]);
+    }
+  };
+
   const initializeApp = async () => {
     try {
       setIsInitializing(true);
@@ -143,6 +158,7 @@ export default function DashboardPage() {
     console.log('[Dashboard] Auth ready, fetching dashboard...');
     fetchDashboard();
     fetchUsers();
+    fetchRoadmaps();
   }, [isReady, refreshKey]);
 
   useEffect(() => {
@@ -237,9 +253,17 @@ export default function DashboardPage() {
     { label: 'Completed', value: data.stats.completed, icon: CheckCircle2, color: 'text-blue-600 dark:text-blue-400' },
   ] : [];
 
-  const sortedProjects = useMemo(() => {
+  const filteredByRoadmap = useMemo(() => {
     if (!data?.projects) return [];
-    const projects = [...data.projects];
+    if (filterRoadmap === 'all') return data.projects;
+    if (filterRoadmap === '__unassigned__') {
+      return data.projects.filter((p) => !p.roadmaps?.length);
+    }
+    return data.projects.filter((p) => p.roadmaps?.includes(filterRoadmap));
+  }, [data?.projects, filterRoadmap]);
+
+  const sortedProjects = useMemo(() => {
+    const projects = [...filteredByRoadmap];
     projects.sort((a, b) => {
       switch (sortOption) {
         case 'created-desc':
@@ -261,7 +285,31 @@ export default function DashboardPage() {
       }
     });
     return projects;
-  }, [data?.projects, sortOption]);
+  }, [filteredByRoadmap, sortOption]);
+
+  const roadmapGroups = useMemo(() => {
+    if (!groupByRoadmap || !data?.projects) return null;
+    const roadmapMap = new Map<string, Roadmap>();
+    for (const rm of roadmaps) roadmapMap.set(rm.id, rm);
+
+    const groups = new Map<string, { roadmap: Roadmap | null; projects: typeof sortedProjects }>();
+
+    for (const project of sortedProjects) {
+      const rmIds = (project.roadmaps?.length) ? project.roadmaps : ['__unassigned__'];
+      for (const rmId of rmIds) {
+        if (!groups.has(rmId)) {
+          groups.set(rmId, {
+            roadmap: roadmapMap.get(rmId) || null,
+            projects: [],
+          });
+        }
+        groups.get(rmId)!.projects.push(project);
+      }
+    }
+
+    return [...groups.entries()]
+      .sort(([, a], [, b]) => (a.roadmap?.sortOrder ?? 9999) - (b.roadmap?.sortOrder ?? 9999));
+  }, [groupByRoadmap, sortedProjects, roadmaps, data?.projects]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -277,7 +325,36 @@ export default function DashboardPage() {
                 Track progress across all your projects
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Roadmap filter */}
+              {roadmaps.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-gray-400" />
+                  <select
+                    value={filterRoadmap}
+                    onChange={(e) => setFilterRoadmap(e.target.value)}
+                    className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="all">All Roadmaps</option>
+                    {roadmaps.map((rm) => (
+                      <option key={rm.id} value={rm.id}>{rm.name}</option>
+                    ))}
+                    <option value="__unassigned__">Unassigned</option>
+                  </select>
+                  <button
+                    onClick={() => setGroupByRoadmap(!groupByRoadmap)}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                      groupByRoadmap
+                        ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400'
+                        : 'text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
+                    }`}
+                    title="Group by roadmap"
+                  >
+                    Group
+                  </button>
+                </div>
+              )}
+
               <div className="flex items-center gap-2">
                 <label
                   htmlFor="dashboard-sort"
@@ -402,7 +479,7 @@ export default function DashboardPage() {
         )}
 
         {/* Project Cards Grid */}
-        {!loading && data && data.projects.length > 0 && (
+        {!loading && data && data.projects.length > 0 && !roadmapGroups && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {sortedProjects.map((project) => (
               <ProjectCard
@@ -414,6 +491,52 @@ export default function DashboardPage() {
                 onDelete={handleDeleteProject}
                 users={users}
               />
+            ))}
+          </div>
+        )}
+
+        {/* Grouped by Roadmap */}
+        {!loading && data && data.projects.length > 0 && roadmapGroups && (
+          <div className="space-y-8">
+            {roadmapGroups.map(([rmId, group]) => (
+              <div key={rmId}>
+                <div className="flex items-center gap-3 mb-4">
+                  {group.roadmap ? (
+                    <>
+                      <div
+                        className="w-4 h-4 rounded-full"
+                        style={{ backgroundColor: group.roadmap.color }}
+                      />
+                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        {group.roadmap.name}
+                      </h2>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-4 h-4 rounded-full bg-gray-400" />
+                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        Unassigned
+                      </h2>
+                    </>
+                  )}
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    ({group.projects.length})
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {group.projects.map((project) => (
+                    <ProjectCard
+                      key={`${rmId}-${project.id}`}
+                      project={project}
+                      tasks={project.tasks}
+                      recentUpdate={project.recentUpdates[0] || null}
+                      onUpdateClick={handleUpdateClick}
+                      onDelete={handleDeleteProject}
+                      users={users}
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         )}
