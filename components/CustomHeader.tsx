@@ -59,7 +59,7 @@ export function CustomHeader({
           <div className="flex items-center space-x-3 group">
             {/* Logo links to portal (external URL - use <a>) */}
             {portalUrl && isExternalUrl(portalUrl) ? (
-              <a href={portalUrl} className="flex items-center">
+              <a href={`${portalUrl}/home`} className="flex items-center">
                 {customization.logoUrl ? (
                   <img 
                     src={customization.logoUrl} 
@@ -119,7 +119,7 @@ export function CustomHeader({
             {/* Apps Navigation - Back to Portal (external URL - use <a>) */}
             {portalUrl && (
               <a
-                href={portalUrl}
+                href={`${portalUrl}/home`}
                 className="flex items-center gap-2 p-2 rounded-lg text-white hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-white/20"
                 title="Back to Portal"
               >
@@ -156,7 +156,7 @@ export function CustomHeader({
               />
             ) : portalUrl ? (
               <a
-                href={portalUrl}
+                href={`${portalUrl}/home`}
                 className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-colors"
               >
                 Sign In
