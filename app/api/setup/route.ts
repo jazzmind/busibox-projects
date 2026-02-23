@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithTokenExchange } from '@/lib/auth-middleware';
 import { getApiToken } from '@/lib/authz-client';
-import { getTokenFromRequest } from '@jazzmind/busibox-app/lib/auth';
+import { getTokenFromRequest } from '@jazzmind/busibox-app/lib/authz';
 import { ensureDataDocuments, DOCUMENTS } from '@/lib/data-api-client';
 import { AGENT_DEFINITIONS } from '@/lib/status-agent';
 

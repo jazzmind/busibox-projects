@@ -19,7 +19,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithTokenExchange } from '@/lib/auth-middleware';
 import { ensureDataDocuments } from '@/lib/data-api-client';
 import { getApiToken } from '@/lib/authz-client';
-import { getTokenFromRequest } from '@jazzmind/busibox-app/lib/auth';
+import { getTokenFromRequest } from '@jazzmind/busibox-app/lib/authz';
 import { generateAndSaveProjectLeadImage } from '@/lib/lead-image';
 
 interface RouteParams {

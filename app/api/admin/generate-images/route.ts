@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithTokenExchange } from '@/lib/auth-middleware';
-import { getTokenFromRequest } from '@jazzmind/busibox-app/lib/auth';
+import { getTokenFromRequest } from '@jazzmind/busibox-app/lib/authz';
 import { getApiToken } from '@/lib/authz-client';
 import { ensureDataDocuments, getAppSettings, listProjects } from '@/lib/data-api-client';
 import { generateAndSaveProjectLeadImage } from '@/lib/lead-image';

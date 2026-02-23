@@ -6,7 +6,7 @@ import {
   getUserRolesFromToken, 
   parseJWTPayload, 
   isTokenExpired 
-} from "@jazzmind/busibox-app/lib/auth";
+} from "@jazzmind/busibox-app/lib/authz";
 
 /**
  * Check if a string looks like a UUID

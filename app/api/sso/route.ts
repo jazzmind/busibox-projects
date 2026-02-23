@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createSSOGetHandler, createSSOPostHandler } from "@jazzmind/busibox-app/lib/auth";
+import { createSSOGetHandler, createSSOPostHandler } from "@jazzmind/busibox-app/lib/authz";
 
 // Create handlers with optional verbose logging for debugging
 const verbose = process.env.VERBOSE_AUTH_LOGGING === 'true';
