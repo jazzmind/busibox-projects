@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { SimpleChatInterface } from '@jazzmind/busibox-app';
-import { useAuth } from '@jazzmind/busibox-app';
+import { useSession } from '@jazzmind/busibox-app/components/auth/SessionProvider';
 import { ProjectStatusBadge, CheckpointProgress } from '@/components/projects';
 import type { Project, Task } from '@/lib/types';
 
@@ -21,7 +21,9 @@ interface PageProps {
 export default function StatusUpdatePage({ params }: PageProps) {
   const { id } = use(params);
   const router = useRouter();
-  const { isReady, refreshKey, authState } = useAuth();
+  const session = useSession();
+  const isReady = (session as { isReady?: boolean }).isReady ?? true;
+  const refreshKey = (session as { refreshKey?: number }).refreshKey ?? 0;
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
   
   // Use proxy URL for agent API calls (handles auth server-side)

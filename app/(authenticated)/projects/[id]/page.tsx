@@ -30,7 +30,7 @@ import {
   EditProjectModal,
   EditTaskModal,
 } from '@/components/projects';
-import { useAuth } from '@jazzmind/busibox-app';
+import { useSession } from '@jazzmind/busibox-app/components/auth/SessionProvider';
 import type { Project, Task, StatusUpdate, TaskStatus, UpdateProjectInput, UpdateTaskInput, Roadmap } from '@/lib/types';
 
 interface ProjectDetailData {
@@ -46,7 +46,9 @@ interface PageProps {
 export default function ProjectDetailPage({ params }: PageProps) {
   const { id } = use(params);
   const router = useRouter();
-  const { isReady, refreshKey } = useAuth();
+  const session = useSession();
+  const isReady = (session as { isReady?: boolean }).isReady ?? true;
+  const refreshKey = (session as { refreshKey?: number }).refreshKey ?? 0;
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
   const [data, setData] = useState<ProjectDetailData | null>(null);

@@ -15,7 +15,8 @@ import {
   Layers,
 } from 'lucide-react';
 import { ProjectCard, ProjectCardSkeleton } from '@/components/projects';
-import { UserPicker, type UserProfile, useAuth } from '@jazzmind/busibox-app';
+import { UserPicker, type UserProfile } from '@jazzmind/busibox-app';
+import { useSession } from '@jazzmind/busibox-app/components/auth/SessionProvider';
 import type { Project, Task, StatusUpdate, CreateProjectInput, ProjectStatus, Roadmap } from '@/lib/types';
 
 interface ProjectWithDetails extends Project {
@@ -63,7 +64,9 @@ const STATUS_ORDER: Record<ProjectStatus, number> = {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { isReady, refreshKey } = useAuth();
+  const session = useSession();
+  const isReady = (session as { isReady?: boolean }).isReady ?? true;
+  const refreshKey = (session as { refreshKey?: number }).refreshKey ?? 0;
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
   
   const [data, setData] = useState<DashboardData | null>(null);

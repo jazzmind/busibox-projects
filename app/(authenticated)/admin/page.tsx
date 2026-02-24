@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useAuth } from '@jazzmind/busibox-app';
+import { useSession } from '@jazzmind/busibox-app/components/auth/SessionProvider';
 import {
   ArrowLeft,
   Bot,
@@ -79,7 +79,9 @@ interface ImageGenerationSummary {
 }
 
 export default function AdminPage() {
-  const { isReady, refreshKey } = useAuth();
+  const session = useSession();
+  const isReady = (session as { isReady?: boolean }).isReady ?? true;
+  const refreshKey = (session as { refreshKey?: number }).refreshKey ?? 0;
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
   const [agentData, setAgentData] = useState<AgentData | null>(null);
