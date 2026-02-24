@@ -34,7 +34,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <FetchWrapper skipAuthUrls={['/api/auth/refresh', '/api/auth/exchange', '/api/auth/token', '/api/session', '/api/auth/session', '/api/logout', '/api/health', '/api/sso', '/portal/api/sso/refresh']} />
+        <FetchWrapper skipAuthUrls={['/api/auth/session', '/api/logout', '/api/health']} />
         <ThemeProvider>
           <SessionProvider appId={appId} portalUrl={portalUrl} basePath={basePath}>
             <CustomizationProvider>
