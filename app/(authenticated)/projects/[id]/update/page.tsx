@@ -25,11 +25,6 @@ export default function StatusUpdatePage({ params }: PageProps) {
   const isReady = (session as { isReady?: boolean }).isReady ?? true;
   const refreshKey = (session as { refreshKey?: number }).refreshKey ?? 0;
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-  
-  // Use proxy URL for agent API calls (handles auth server-side)
-  // This avoids CORS issues and keeps internal IPs unexposed
-  // Note: Don't include basePath - Next.js handles it automatically for API routes
-  const agentApiUrl = '/api/agent';
 
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -193,7 +188,6 @@ What have you been working on?`;
           {apiToken ? (
             <SimpleChatInterface
               token={apiToken || ''} // Token passed for compatibility, but proxy uses cookie auth
-              agentUrl={agentApiUrl}
               agentId="status-update"
               placeholder="What did you work on today?"
               welcomeMessage={buildWelcomeMessage()}
