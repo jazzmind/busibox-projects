@@ -22,7 +22,7 @@ import {
   Search, ZoomIn, ZoomOut, Maximize2, RotateCcw,
   Loader2, AlertCircle, Network, X, ChevronRight,
   FolderKanban, CheckSquare, FileText, ExternalLink,
-  Play, Pause,
+  Play, Pause, Maximize, Minimize,
 } from 'lucide-react';
 import { GraphBackground } from './GraphBackground';
 // Status types are used implicitly via the color maps below
@@ -625,11 +625,22 @@ export function ProjectGraph() {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const graphRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hasAutoFitRef = useRef(false);
+
+  // Escape key exits fullscreen
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFullscreen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isFullscreen]);
 
   // ==========================================================================
   // Data Fetching
@@ -1338,9 +1349,13 @@ export function ProjectGraph() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className={
+      isFullscreen
+        ? 'fixed inset-0 z-50 flex flex-col bg-gray-50 dark:bg-gray-900'
+        : 'space-y-3'
+    }>
       {/* Summary Bar */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 px-4 py-3">
+      <div className={`bg-white dark:bg-gray-800 ${isFullscreen ? 'border-b' : 'rounded-lg shadow-sm border'} border-gray-200 dark:border-gray-700 px-4 py-3`}>
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <div className="flex items-center gap-1.5">
             <FolderKanban className="w-4 h-4 text-green-600" />
@@ -1373,7 +1388,7 @@ export function ProjectGraph() {
       </div>
 
       {/* Search and Controls */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 px-4 py-3">
+      <div className={`bg-white dark:bg-gray-800 ${isFullscreen ? 'border-b' : 'rounded-lg shadow-sm border'} border-gray-200 dark:border-gray-700 px-4 py-3`}>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           {/* Search */}
           <div className="relative flex-1 min-w-0">
@@ -1437,16 +1452,28 @@ export function ProjectGraph() {
             >
               <RotateCcw className="w-4 h-4" />
             </button>
+            <div className="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-0.5" />
+            <button
+              onClick={() => setIsFullscreen(f => !f)}
+              className="p-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            >
+              {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+            </button>
           </div>
         </div>
       </div>
 
       {/* Graph + Detail Panel */}
-      <div className="relative">
+      <div className={isFullscreen ? 'flex-1 relative min-h-0' : 'relative'}>
         {/* Graph Canvas */}
         <div
           ref={containerRef}
-          className="w-full h-[70vh] min-h-[600px] rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden relative"
+          className={`w-full overflow-hidden relative ${
+            isFullscreen
+              ? 'h-full'
+              : 'h-[70vh] min-h-[600px] rounded-lg shadow-sm border border-gray-200 dark:border-gray-700'
+          }`}
         >
           {/* Parallax background */}
           <GraphBackground
@@ -1522,38 +1549,40 @@ export function ProjectGraph() {
       </div>
 
       {/* Legend */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 px-4 py-3">
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-gray-600 dark:text-gray-400">
-          <span className="font-medium text-gray-700 dark:text-gray-300">Project Status:</span>
-          {Object.entries(PROJECT_STATUS_COLORS).map(([status, color]) => (
-            <span key={status} className="inline-flex items-center gap-1">
-              <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-              <span className="capitalize">{status.replace(/-/g, ' ')}</span>
+      {!isFullscreen && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-gray-600 dark:text-gray-400">
+            <span className="font-medium text-gray-700 dark:text-gray-300">Project Status:</span>
+            {Object.entries(PROJECT_STATUS_COLORS).map(([status, color]) => (
+              <span key={status} className="inline-flex items-center gap-1">
+                <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
+                <span className="capitalize">{status.replace(/-/g, ' ')}</span>
+              </span>
+            ))}
+            <span className="text-gray-300 dark:text-gray-600">|</span>
+            <span className="font-medium text-gray-700 dark:text-gray-300">Task Status:</span>
+            {Object.entries(TASK_STATUS_COLORS).map(([status, color]) => (
+              <span key={status} className="inline-flex items-center gap-1">
+                <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+                <span className="capitalize">{status.replace(/-/g, ' ')}</span>
+              </span>
+            ))}
+            <span className="text-gray-300 dark:text-gray-600">|</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: ENTITY_TYPE_COLORS.StatusUpdate }} />
+              Updates
             </span>
-          ))}
-          <span className="text-gray-300 dark:text-gray-600">|</span>
-          <span className="font-medium text-gray-700 dark:text-gray-300">Task Status:</span>
-          {Object.entries(TASK_STATUS_COLORS).map(([status, color]) => (
-            <span key={status} className="inline-flex items-center gap-1">
-              <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
-              <span className="capitalize">{status.replace(/-/g, ' ')}</span>
+            <span className="text-gray-300 dark:text-gray-600">|</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-5 h-0.5 border-t-2 border-dashed border-violet-500" />
+              Similarity Links
             </span>
-          ))}
-          <span className="text-gray-300 dark:text-gray-600">|</span>
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: ENTITY_TYPE_COLORS.StatusUpdate }} />
-            Updates
-          </span>
-          <span className="text-gray-300 dark:text-gray-600">|</span>
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block w-5 h-0.5 border-t-2 border-dashed border-violet-500" />
-            Similarity Links
-          </span>
-          <span className="ml-auto text-gray-400 dark:text-gray-500">
-            {touring ? 'Auto-touring projects...' : 'Click nodes to expand'} | Scroll to zoom | Drag to pan
-          </span>
+            <span className="ml-auto text-gray-400 dark:text-gray-500">
+              {touring ? 'Auto-touring projects...' : 'Click nodes to expand'} | Scroll to zoom | Drag to pan
+            </span>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
