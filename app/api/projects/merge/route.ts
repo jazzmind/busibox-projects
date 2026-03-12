@@ -36,9 +36,9 @@ function pickLatestDate(a?: string, b?: string): string | undefined {
 
 function mergeProjectMetadata(target: Project, sources: Project[]): Partial<Project> {
   const all = [target, ...sources];
-  const priority = all
-    .map((p) => p.priority || 3)
-    .reduce((min, value) => Math.min(min, value), 5) as Project['priority'];
+  const priorityNumbers = all.map((p) => p.priority ?? 3);
+  const minPriority = priorityNumbers.reduce<number>((min, value) => Math.min(min, value), 5);
+  const priority = Math.max(1, Math.min(5, minPriority)) as Project['priority'];
 
   return {
     description: target.description || sources.find((s) => s.description)?.description,
