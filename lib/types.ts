@@ -128,6 +128,18 @@ export interface AppSettings {
   updatedAt: string;
 }
 
+export interface MergeProjectsInput {
+  targetProjectId: string;
+  sourceProjectIds: string[];
+}
+
+export interface MergeProjectsResult {
+  mergedProject: Project;
+  mergedSourceProjectIds: string[];
+  movedTasks: number;
+  movedUpdates: number;
+}
+
 // ==========================================================================
 // Task Types
 // ==========================================================================

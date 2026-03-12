@@ -91,7 +91,9 @@ export function exportToMarkdown(data: ExportData): string {
   lines.push('');
 
   // Sorted roadmaps
-  const sortedRoadmaps = [...roadmaps].sort((a, b) => a.sortOrder - b.sortOrder);
+  const sortedRoadmaps = [...roadmaps].sort(
+    (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+  );
 
   for (const rm of sortedRoadmaps) {
     const rmProjects = projectsByRoadmap.get(rm.id) || [];

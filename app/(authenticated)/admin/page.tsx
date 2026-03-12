@@ -272,7 +272,12 @@ export default function AdminPage() {
     try {
       setExporting(true);
       const response = await fetch(`${basePath}/api/admin/export`);
-      if (!response.ok) throw new Error('Export failed');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(
+          errorData?.details || errorData?.message || errorData?.error || `Export failed (${response.status})`
+        );
+      }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -294,7 +299,12 @@ export default function AdminPage() {
     try {
       setExporting(true);
       const response = await fetch(`${basePath}/api/admin/export?format=json`);
-      if (!response.ok) throw new Error('Export failed');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(
+          errorData?.details || errorData?.message || errorData?.error || `Export failed (${response.status})`
+        );
+      }
       const data = await response.json();
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);

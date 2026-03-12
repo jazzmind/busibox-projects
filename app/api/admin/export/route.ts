@@ -14,6 +14,15 @@ export async function GET(request: NextRequest) {
   if (auth instanceof NextResponse) return auth;
 
   try {
+    const { searchParams } = new URL(request.url);
+    const format = (searchParams.get('format') || 'markdown').toLowerCase();
+    if (format !== 'markdown' && format !== 'json') {
+      return NextResponse.json(
+        { error: 'Unsupported export format. Use "markdown" or "json".' },
+        { status: 400 }
+      );
+    }
+
     const documentIds = await ensureDataDocuments(auth.apiToken);
 
     const [projectsResult, tasksResult, updatesResult, roadmapsResult] = await Promise.all([
@@ -22,9 +31,6 @@ export async function GET(request: NextRequest) {
       listStatusUpdates(auth.apiToken, documentIds.updates, { limit: 2000 }),
       listRoadmaps(auth.apiToken, documentIds.roadmaps),
     ]);
-
-    const { searchParams } = new URL(request.url);
-    const format = searchParams.get('format') || 'markdown';
 
     if (format === 'json') {
       return NextResponse.json({
@@ -54,7 +60,10 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('[EXPORT] Failed to export:', error);
     return NextResponse.json(
-      { error: 'Failed to export', details: String(error) },
+      {
+        error: 'Failed to export',
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }

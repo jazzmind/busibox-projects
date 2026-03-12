@@ -13,8 +13,9 @@ import {
   CheckCircle2,
   X,
   Layers,
+  GitMerge,
 } from 'lucide-react';
-import { ProjectCard, ProjectCardSkeleton } from '@/components/projects';
+import { MergeProjectsModal, ProjectCard, ProjectCardSkeleton } from '@/components/projects';
 import { UserPicker, type UserProfile } from '@jazzmind/busibox-app';
 import { useSession } from '@jazzmind/busibox-app/components/auth/SessionProvider';
 import type { Project, Task, StatusUpdate, CreateProjectInput, ProjectStatus, Roadmap } from '@/lib/types';
@@ -81,6 +82,7 @@ export default function DashboardPage() {
   
   // New Project Modal state
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
+  const [showMergeModal, setShowMergeModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newProject, setNewProject] = useState<CreateProjectInput>({
     name: '',
@@ -400,6 +402,15 @@ export default function DashboardPage() {
                 <Plus className="w-4 h-4" />
                 New Project
               </button>
+              {data && data.projects.length > 1 && (
+                <button
+                  onClick={() => setShowMergeModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                >
+                  <GitMerge className="w-4 h-4" />
+                  Merge Projects
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -673,6 +684,19 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {showMergeModal && data && (
+        <MergeProjectsModal
+          projects={data.projects}
+          basePath={basePath}
+          onClose={() => setShowMergeModal(false)}
+          onMerged={() => {
+            setShowMergeModal(false);
+            fetchDashboard();
+            fetchRoadmaps();
+          }}
+        />
       )}
     </div>
   );

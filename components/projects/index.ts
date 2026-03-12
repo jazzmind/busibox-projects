@@ -11,3 +11,4 @@ export { ProjectGraph } from './ProjectGraph';
 export { GraphBackground } from './GraphBackground';
 export { EditProjectModal } from './EditProjectModal';
 export { EditTaskModal } from './EditTaskModal';
+export { MergeProjectsModal } from './MergeProjectsModal';
