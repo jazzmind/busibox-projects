@@ -762,11 +762,22 @@ export async function listRoadmaps(
   token: string,
   documentId: string
 ): Promise<{ roadmaps: Roadmap[]; total: number }> {
-  const result = await queryRecords<Roadmap>(token, documentId, {
-    orderBy: [{ field: 'sortOrder', direction: 'asc' }],
-    limit: 100,
-  });
-  return { roadmaps: result.records, total: result.total };
+  try {
+    const result = await queryRecords<Roadmap>(token, documentId, {
+      orderBy: [{ field: 'sortOrder', direction: 'asc' }],
+      limit: 100,
+    });
+    return { roadmaps: result.records, total: result.total };
+  } catch (error) {
+    // Backward-compatible fallback for legacy roadmap documents whose schema
+    // may not support sortOrder ordering yet.
+    console.warn('[ROADMAPS] Ordered query failed, retrying without orderBy:', error);
+    const fallback = await queryRecords<Roadmap>(token, documentId, { limit: 100 });
+    const roadmaps = [...fallback.records].sort(
+      (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+    );
+    return { roadmaps, total: fallback.total };
+  }
 }
 
 export async function getRoadmap(

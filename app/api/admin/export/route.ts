@@ -9,6 +9,27 @@ import {
 } from '@/lib/data-api-client';
 import { exportToMarkdown } from '@/lib/markdown-io';
 
+function formatErrorDetails(error: unknown): string {
+  if (error instanceof Error) {
+    const withOriginal = error as Error & { originalError?: unknown };
+    if (withOriginal.originalError) {
+      if (typeof withOriginal.originalError === 'string') return withOriginal.originalError;
+      try {
+        return JSON.stringify(withOriginal.originalError);
+      } catch {
+        return String(withOriginal.originalError);
+      }
+    }
+    return error.message;
+  }
+  if (typeof error === 'string') return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireAuthWithTokenExchange(request, 'data-api');
   if (auth instanceof NextResponse) return auth;
@@ -25,12 +46,20 @@ export async function GET(request: NextRequest) {
 
     const documentIds = await ensureDataDocuments(auth.apiToken);
 
-    const [projectsResult, tasksResult, updatesResult, roadmapsResult] = await Promise.all([
+    const [projectsResult, tasksResult, updatesResult] = await Promise.all([
       listProjects(auth.apiToken, documentIds.projects, { limit: 500 }),
       listTasks(auth.apiToken, documentIds.tasks, { limit: 2000 }),
       listStatusUpdates(auth.apiToken, documentIds.updates, { limit: 2000 }),
-      listRoadmaps(auth.apiToken, documentIds.roadmaps),
     ]);
+
+    let roadmapsResult: { roadmaps: Awaited<ReturnType<typeof listRoadmaps>>['roadmaps'] };
+    try {
+      const loadedRoadmaps = await listRoadmaps(auth.apiToken, documentIds.roadmaps);
+      roadmapsResult = { roadmaps: loadedRoadmaps.roadmaps };
+    } catch (roadmapError) {
+      console.warn('[EXPORT] Failed to load roadmaps, continuing with empty roadmaps:', roadmapError);
+      roadmapsResult = { roadmaps: [] };
+    }
 
     if (format === 'json') {
       return NextResponse.json({
@@ -62,7 +91,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         error: 'Failed to export',
-        details: error instanceof Error ? error.message : String(error),
+        details: formatErrorDetails(error),
       },
       { status: 500 }
     );
