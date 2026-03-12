@@ -8,6 +8,9 @@ import {
   listRoadmaps,
 } from '@/lib/data-api-client';
 import { exportToMarkdown } from '@/lib/markdown-io';
+import type { Project, StatusUpdate, Task } from '@/lib/types';
+
+const EXPORT_PAGE_LIMIT = 1000;
 
 function formatErrorDetails(error: unknown): string {
   if (error instanceof Error) {
@@ -30,6 +33,57 @@ function formatErrorDetails(error: unknown): string {
   }
 }
 
+async function fetchAllProjects(token: string, documentId: string) {
+  const projects: Project[] = [];
+  let offset = 0;
+
+  while (true) {
+    const page = await listProjects(token, documentId, {
+      limit: EXPORT_PAGE_LIMIT,
+      offset,
+    });
+    projects.push(...page.projects);
+    if (page.projects.length < EXPORT_PAGE_LIMIT) break;
+    offset += page.projects.length;
+  }
+
+  return projects;
+}
+
+async function fetchAllTasks(token: string, documentId: string) {
+  const tasks: Task[] = [];
+  let offset = 0;
+
+  while (true) {
+    const page = await listTasks(token, documentId, {
+      limit: EXPORT_PAGE_LIMIT,
+      offset,
+    });
+    tasks.push(...page.tasks);
+    if (page.tasks.length < EXPORT_PAGE_LIMIT) break;
+    offset += page.tasks.length;
+  }
+
+  return tasks;
+}
+
+async function fetchAllStatusUpdates(token: string, documentId: string) {
+  const updates: StatusUpdate[] = [];
+  let offset = 0;
+
+  while (true) {
+    const page = await listStatusUpdates(token, documentId, {
+      limit: EXPORT_PAGE_LIMIT,
+      offset,
+    });
+    updates.push(...page.updates);
+    if (page.updates.length < EXPORT_PAGE_LIMIT) break;
+    offset += page.updates.length;
+  }
+
+  return updates;
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireAuthWithTokenExchange(request, 'data-api');
   if (auth instanceof NextResponse) return auth;
@@ -46,10 +100,10 @@ export async function GET(request: NextRequest) {
 
     const documentIds = await ensureDataDocuments(auth.apiToken);
 
-    const [projectsResult, tasksResult, updatesResult] = await Promise.all([
-      listProjects(auth.apiToken, documentIds.projects, { limit: 500 }),
-      listTasks(auth.apiToken, documentIds.tasks, { limit: 2000 }),
-      listStatusUpdates(auth.apiToken, documentIds.updates, { limit: 2000 }),
+    const [projects, tasks, updates] = await Promise.all([
+      fetchAllProjects(auth.apiToken, documentIds.projects),
+      fetchAllTasks(auth.apiToken, documentIds.tasks),
+      fetchAllStatusUpdates(auth.apiToken, documentIds.updates),
     ]);
 
     let roadmapsResult: { roadmaps: Awaited<ReturnType<typeof listRoadmaps>>['roadmaps'] };
@@ -64,17 +118,17 @@ export async function GET(request: NextRequest) {
     if (format === 'json') {
       return NextResponse.json({
         roadmaps: roadmapsResult.roadmaps,
-        projects: projectsResult.projects,
-        tasks: tasksResult.tasks,
-        updates: updatesResult.updates,
+        projects,
+        tasks,
+        updates,
       });
     }
 
     const markdown = exportToMarkdown({
       roadmaps: roadmapsResult.roadmaps,
-      projects: projectsResult.projects,
-      tasks: tasksResult.tasks,
-      updates: updatesResult.updates,
+      projects,
+      tasks,
+      updates,
     });
 
     const filename = `busibox-projects-${new Date().toISOString().split('T')[0]}.md`;
