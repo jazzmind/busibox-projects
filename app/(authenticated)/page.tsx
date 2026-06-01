@@ -142,7 +142,17 @@ export default function DashboardPage() {
       setIsInitializing(true);
       const response = await fetch(`${basePath}/api/setup`, { method: 'POST' });
       if (!response.ok) {
-        throw new Error('Failed to initialize app');
+        // Surface the real data-api error instead of a generic message so
+        // initialization failures are actually diagnosable from the UI.
+        let detail = `Failed to initialize app (HTTP ${response.status})`;
+        try {
+          const body = await response.json();
+          const serverMsg = body?.message || body?.details || body?.error;
+          if (serverMsg) detail = `Initialization failed: ${serverMsg}`;
+        } catch {
+          /* response had no JSON body */
+        }
+        throw new Error(detail);
       }
       await fetchDashboard();
     } catch (err) {
